@@ -1,0 +1,32 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@theme {
+  --color-bg: #0d1117;
+  --color-surface: #161b22;
+  --color-surface-hover: #1c2128;
+  --color-ink: #f0f6fc;
+  --color-orange: #f97316;
+  --color-blue: #2f80ed;
+  --color-wa: #25d366;
+  --color-emergency: #ef4444;
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+html, body {
+  background-color: #0d1117;
+  color: #f0f6fc;
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+}
