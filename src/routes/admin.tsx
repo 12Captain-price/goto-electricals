@@ -359,7 +359,7 @@ function ServicesAdmin({ data, update, showToast }: { data: ReturnType<typeof us
               </button>
             </div>
             <button
-              onClick={() => showToast(`"${s.title}" saved`)}
+              onClick={() => { update((p) => ({ ...p, services: data.services })); showToast(`"${s.title}" saved`); }}
               className="mt-3 flex items-center gap-1 rounded-full bg-[#f97316] px-4 py-2 text-xs font-semibold text-black"
             >
               <Save className="h-3 w-3" /> Save
@@ -428,7 +428,7 @@ function PortfolioAdmin({ data, update, showToast }: { data: ReturnType<typeof u
               />
             </div>
             <div className="mt-3 flex justify-between gap-2">
-              <button onClick={() => showToast(`"${p.title}" saved`)} className="flex items-center gap-1 rounded-full bg-[#f97316] px-4 py-2 text-xs font-semibold text-black"><Save className="h-3 w-3" /> Save</button>
+              <button onClick={() => { update((prev) => ({ ...prev, projects: data.projects })); showToast(`"${p.title}" saved`); }} className="flex items-center gap-1 rounded-full bg-[#f97316] px-4 py-2 text-xs font-semibold text-black"><Save className="h-3 w-3" /> Save</button>
               <button onClick={() => removeProject(p.id)} className="flex items-center gap-1 rounded-full border border-[#ef4444]/40 px-4 py-2 text-xs text-[#ef4444] hover:bg-red-500/10"><Trash2 className="h-3 w-3" /> Delete</button>
             </div>
           </div>
@@ -597,7 +597,7 @@ function TestimonialsAdmin({ data, update, showToast }: { data: ReturnType<typeo
             </div>
             <textarea value={t.quote} onChange={(e) => updateItem(t.id, { quote: e.target.value })} rows={3} className={`${inputCls} mt-2`} placeholder="Quote" />
             <div className="mt-3 flex justify-between">
-              <button onClick={() => showToast(`Testimonial from "${t.name}" saved`)} className="flex items-center gap-1 rounded-full bg-[#f97316] px-4 py-2 text-xs font-semibold text-black"><Save className="h-3 w-3" /> Save</button>
+              <button onClick={() => { update((prev) => ({ ...prev, testimonials: data.testimonials })); showToast(`Testimonial from "${t.name}" saved`); }} className="flex items-center gap-1 rounded-full bg-[#f97316] px-4 py-2 text-xs font-semibold text-black"><Save className="h-3 w-3" /> Save</button>
               <button onClick={() => remove(t.id)} className="flex items-center gap-1 rounded-full border border-[#ef4444]/40 px-4 py-2 text-xs text-[#ef4444] hover:bg-red-500/10"><Trash2 className="h-3 w-3" /> Delete</button>
             </div>
           </div>
