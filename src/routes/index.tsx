@@ -9,6 +9,7 @@ import {
   AlertCircle, ChevronRight, Award, FileText, Download,
 } from "lucide-react";
 import { useSiteData, type Project, type HeroSlide, type Service, type Certificate } from "@/lib/site-store";
+import { useQuotes } from "@/lib/quotes-store";
 import { downloadProjectPng, downloadProjectPdf, shareProject } from "@/lib/project-export";
 import logoUrl from "@/assets/goto-logo.jpeg";
 
@@ -504,6 +505,9 @@ function Contact({ contact }: { contact: ReturnType<typeof useSiteData>["data"][
   const [locError, setLocError] = useState<string | null>(null);
   const [message, setMessage]   = useState("");
   const [sent, setSent]         = useState(false);
+  const [saving, setSaving]     = useState(false);
+
+  const { addQuote } = useQuotes();
 
   const useMyLocation = () => {
     if (!navigator.geolocation) { setLocError("Not supported on this browser."); return; }
@@ -523,14 +527,42 @@ function Contact({ contact }: { contact: ReturnType<typeof useSiteData>["data"][
     window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location.trim())}`, "_blank");
   };
 
-  const handleSend = () => {
-    const body = `*New Quote Request — Go To Electricals*\n\n*Service:* ${service}\n*Name:* ${name}\n*Phone:* ${phone}\n*Location:* ${location || "Not provided"}\n*Message:* ${message || "—"}`;
+  const saveQuote = async (channel: "whatsapp" | "email") => {
+    setSaving(true);
+    try {
+      await addQuote({
+        service,
+        name,
+        phone,
+        location: location || null,
+        message: message || null,
+        channel,
+      });
+    } catch (err) {
+      console.error("[Contact] Failed to save quote:", err);
+      // Don't block the client from sending even if saving fails
+    }
+    setSaving(false);
+  };
+
+  const handleSend = async () => {
+    await saveQuote("whatsapp");
+
+    const body = `*New Quote Request — Go To Electricals*\n\n*Service:* ${service}\n*Name:* ${name}\n*Phone:* ${phone}\n*Location:* ${location || "Not provided"}\n*Message:* ${message || "—"}\n\nNote: A $15 fixed call-out fee applies before work begins — covers site visit, assessment & fault diagnosis.`;
     window.open(`https://wa.me/${contact.whatsapp}?text=${encodeURIComponent(body)}`, "_blank");
     setSent(true);
     setTimeout(() => {
       setSent(false); setStep(1);
       setService(""); setName(""); setPhone(""); setLocation(""); setMessage("");
     }, 5000);
+  };
+
+  const handleSendEmail = async () => {
+    await saveQuote("email");
+
+    const subject = encodeURIComponent(`Quote Request — ${name} — ${service}`);
+    const body = encodeURIComponent(`Hi,\n\nService: ${service}\nName: ${name}\nPhone: ${phone}\nLocation: ${location || "Not provided"}\n\n${message}\n\nNote: A $15 fixed call-out fee applies before work begins — covers site visit, assessment & fault diagnosis.`);
+    window.open(`mailto:${contact.email}?subject=${subject}&body=${body}`, "_blank");
   };
 
   const stepLabels = ["Choose Service", "Your Details", "Review & Send"];
@@ -843,20 +875,18 @@ function Contact({ contact }: { contact: ReturnType<typeof useSiteData>["data"][
                 <button
                   type="button"
                   onClick={handleSend}
-                  className="flex w-full items-center justify-center gap-2 rounded-full bg-[#25d366] py-3 text-sm font-semibold text-black transition hover:bg-green-400"
+                  disabled={saving}
+                  className="flex w-full items-center justify-center gap-2 rounded-full bg-[#25d366] py-3 text-sm font-semibold text-black transition hover:bg-green-400 disabled:opacity-60"
                 >
-                  <MessageCircle className="h-4 w-4" /> Send via WhatsApp
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />} Send via WhatsApp
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    const subject = encodeURIComponent(`Quote Request — ${service}`);
-                    const body = encodeURIComponent(`Hi,\n\nService: ${service}\nName: ${name}\nPhone: ${phone}\nLocation: ${location || "Not provided"}\n\n${message}`);
-                    window.open(`mailto:${contact.email}?subject=${subject}&body=${body}`, "_blank");
-                  }}
-                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-full border border-white/10 py-3 text-sm font-semibold text-white/60 transition hover:border-white/30 hover:text-white"
+                  onClick={handleSendEmail}
+                  disabled={saving}
+                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-full border border-white/10 py-3 text-sm font-semibold text-white/60 transition hover:border-white/30 hover:text-white disabled:opacity-60"
                 >
-                  <Mail className="h-4 w-4" /> Send via Email instead
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />} Send via Email instead
                 </button>
               </motion.div>
             )}
