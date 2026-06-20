@@ -4,8 +4,10 @@ import {
   ShieldCheck, Eye, EyeOff, AlertCircle, LayoutDashboard, ImagePlus,
   Star, Phone, BarChart2, Settings, LogOut, Trash2, Plus, CheckCircle, Save,
   Image, ChevronUp, ChevronDown, Zap, X, FileText, Upload, Loader2, Award,
+  Inbox, MapPin, MessageCircle, Mail, User, Clock,
 } from "lucide-react";
 import { useSiteData, AUTH_KEY, type Project, type Testimonial, type HeroSlide, type Service, type ServiceOperation, type Certificate } from "@/lib/site-store";
+import { useQuotes, type Quote, type QuoteStatus } from "@/lib/quotes-store";
 import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/admin")({
@@ -73,17 +75,21 @@ function Login({ onAuth }: { onAuth: () => void }) {
   );
 }
 
-type Tab = "overview" | "hero" | "services" | "portfolio" | "certificates" | "testimonials" | "contact" | "stats" | "settings";
+type Tab = "overview" | "hero" | "services" | "portfolio" | "certificates" | "testimonials" | "contact" | "stats" | "settings" | "quotes";
 
 function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [tab, setTab] = useState<Tab>("overview");
   const { data, update } = useSiteData();
+  const { quotes } = useQuotes();
   const [toast, setToast] = useState<string | null>(null);
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
 
-  const nav: { id: Tab; icon: typeof LayoutDashboard; label: string }[] = [
+  const newQuotesCount = quotes.filter((q) => q.status === "new").length;
+
+  const nav: { id: Tab; icon: typeof LayoutDashboard; label: string; badge?: number }[] = [
     { id: "overview", icon: LayoutDashboard, label: "Overview" },
+    { id: "quotes", icon: Inbox, label: "Quotes", badge: newQuotesCount },
     { id: "hero", icon: Image, label: "Hero Slideshow" },
     { id: "services", icon: Zap, label: "Services" },
     { id: "portfolio", icon: ImagePlus, label: "Portfolio" },
@@ -109,7 +115,11 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                 tab === n.id ? "border-white/30 bg-[#1c2128] text-white" : "border-transparent text-white/60 hover:text-white"
               }`}
             >
-              <n.icon className="h-4 w-4 text-[#f97316]" /> {n.label}
+              <n.icon className="h-4 w-4 text-[#f97316]" />
+              <span className="flex-1 text-left">{n.label}</span>
+              {!!n.badge && (
+                <span className="rounded-full bg-[#f97316] px-2 py-0.5 text-[10px] font-bold text-black">{n.badge}</span>
+              )}
             </button>
           ))}
         </nav>
@@ -119,7 +129,8 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
       </aside>
 
       <main className="ml-64 min-h-screen p-8">
-        {tab === "overview" && <Overview data={data} />}
+        {tab === "overview" && <Overview data={data} quotes={quotes} />}
+        {tab === "quotes" && <QuotesAdmin showToast={showToast} />}
         {tab === "hero" && <HeroSlideshowAdmin data={data} update={update} showToast={showToast} />}
         {tab === "services" && <ServicesAdmin data={data} update={update} showToast={showToast} />}
         {tab === "portfolio" && <PortfolioAdmin data={data} update={update} showToast={showToast} />}
@@ -143,12 +154,12 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   return <h1 className="mb-8 font-display text-2xl font-bold">{children}</h1>;
 }
 
-function Overview({ data }: { data: ReturnType<typeof useSiteData>["data"] }) {
+function Overview({ data, quotes }: { data: ReturnType<typeof useSiteData>["data"]; quotes: Quote[] }) {
   const stats = [
+    { value: quotes.filter((q) => q.status === "new").length, label: "New Quotes" },
     { value: data.projects.length, label: "Portfolio Items" },
     { value: data.testimonials.length, label: "Testimonials" },
     { value: data.certificates.length, label: "Certificates" },
-    { value: "Live", label: "Site Status" },
   ];
   return (
     <div>
@@ -166,6 +177,161 @@ function Overview({ data }: { data: ReturnType<typeof useSiteData>["data"] }) {
 }
 
 const inputCls = "w-full rounded-xl border border-white/10 bg-[#0d1117] px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-[#f97316] focus:outline-none";
+
+// ── Quotes Admin ──
+
+const STATUS_CONFIG: Record<QuoteStatus, { label: string; color: string; bg: string; border: string }> = {
+  new:       { label: "New",       color: "text-[#f97316]", bg: "bg-[#f97316]/10", border: "border-[#f97316]/40" },
+  contacted: { label: "Contacted", color: "text-[#3b82f6]", bg: "bg-[#3b82f6]/10", border: "border-[#3b82f6]/40" },
+  quoted:    { label: "Quoted",    color: "text-[#a855f7]", bg: "bg-[#a855f7]/10", border: "border-[#a855f7]/40" },
+  closed:    { label: "Closed",    color: "text-white/50",  bg: "bg-white/5",      border: "border-white/15" },
+};
+
+const STATUS_ORDER: QuoteStatus[] = ["new", "contacted", "quoted", "closed"];
+
+function QuoteCard({ quote, onStatusChange, onDelete }: {
+  quote: Quote;
+  onStatusChange: (status: QuoteStatus) => void;
+  onDelete: () => void;
+}) {
+  const cfg = STATUS_CONFIG[quote.status];
+  const date = new Date(quote.created_at);
+
+  return (
+    <div className={`rounded-2xl border ${cfg.border} bg-[#161b22] p-5`}>
+      <div className="flex items-start justify-between gap-3">
+        <span className={`flex items-center gap-1.5 rounded-full ${cfg.bg} px-3 py-1 font-mono text-[10px] uppercase tracking-wider ${cfg.color}`}>
+          <CheckCircle className="h-3 w-3" /> {cfg.label}
+        </span>
+        <button
+          onClick={onDelete}
+          title="Delete quote"
+          aria-label="Delete quote"
+          className="flex h-7 w-7 items-center justify-center rounded-full border border-[#ef4444]/40 text-[#ef4444] hover:bg-red-500/10"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      <div className="mt-4 flex items-center gap-2">
+        <Zap className="h-4 w-4 flex-shrink-0 text-[#f97316]" />
+        <span className="font-display text-base font-semibold text-white">{quote.service}</span>
+      </div>
+
+      <div className="mt-3 space-y-2 text-sm">
+        <div className="flex items-center gap-2 text-white/70">
+          <User className="h-3.5 w-3.5 flex-shrink-0 text-white/40" /> {quote.name}
+        </div>
+        <div className="flex items-center gap-2 text-white/70">
+          <Phone className="h-3.5 w-3.5 flex-shrink-0 text-white/40" /> {quote.phone}
+        </div>
+        {quote.location && (
+          <div className="flex items-center gap-2 text-white/70">
+            <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-white/40" /> {quote.location}
+          </div>
+        )}
+        <div className="flex items-center gap-2 text-white/40">
+          {quote.channel === "whatsapp" ? (
+            <MessageCircle className="h-3.5 w-3.5 flex-shrink-0" />
+          ) : (
+            <Mail className="h-3.5 w-3.5 flex-shrink-0" />
+          )}
+          via {quote.channel === "whatsapp" ? "WhatsApp" : "Email"}
+        </div>
+        <div className="flex items-center gap-2 text-white/40">
+          <Clock className="h-3.5 w-3.5 flex-shrink-0" />
+          {date.toLocaleDateString()} · {date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+        </div>
+      </div>
+
+      {quote.message && (
+        <p className="mt-3 rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-xs text-white/60">
+          {quote.message}
+        </p>
+      )}
+
+      <div className="mt-4">
+        <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">Status</label>
+        <select
+          value={quote.status}
+          onChange={(e) => onStatusChange(e.target.value as QuoteStatus)}
+          className={`${inputCls} cursor-pointer`}
+        >
+          {STATUS_ORDER.map((s) => (
+            <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+}
+
+function QuotesAdmin({ showToast }: { showToast: (m: string) => void }) {
+  const { quotes, ready, updateStatus, removeQuote } = useQuotes();
+  const [filter, setFilter] = useState<QuoteStatus | "all">("all");
+
+  const filtered = filter === "all" ? quotes : quotes.filter((q) => q.status === filter);
+
+  const handleStatusChange = async (id: string, status: QuoteStatus) => {
+    await updateStatus(id, status);
+    showToast("Status updated");
+  };
+
+  const handleDelete = async (id: string) => {
+    await removeQuote(id);
+    showToast("Quote deleted");
+  };
+
+  return (
+    <div>
+      <SectionTitle>Quotes</SectionTitle>
+      <p className="mb-6 max-w-2xl text-sm text-white/60">
+        Quote requests submitted through the public "Get a Quote" form on the homepage. Update the status as you
+        follow up, or delete old requests you no longer need.
+      </p>
+
+      <div className="mb-6 flex flex-wrap gap-2">
+        {(["all", ...STATUS_ORDER] as const).map((f) => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={`rounded-full border px-4 py-1.5 text-xs font-semibold transition ${
+              filter === f
+                ? "border-[#f97316] bg-[#f97316]/10 text-[#f97316]"
+                : "border-white/10 text-white/50 hover:text-white"
+            }`}
+          >
+            {f === "all" ? "All" : STATUS_CONFIG[f].label}
+            {f !== "all" && ` (${quotes.filter((q) => q.status === f).length})`}
+            {f === "all" && ` (${quotes.length})`}
+          </button>
+        ))}
+      </div>
+
+      {!ready ? (
+        <div className="flex justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-[#f97316]" />
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-white/10 bg-[#161b22] py-16 text-center">
+          <Inbox className="h-8 w-8 text-white/20" />
+          <p className="text-sm text-white/40">No quotes here yet.</p>
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {filtered.map((q) => (
+            <QuoteCard
+              key={q.id}
+              quote={q}
+              onStatusChange={(status) => handleStatusChange(q.id, status)}
+              onDelete={() => handleDelete(q.id)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function HeroSlideshowAdmin({ data, update, showToast }: { data: ReturnType<typeof useSiteData>["data"]; update: ReturnType<typeof useSiteData>["update"]; showToast: (m: string) => void }) {
   const setSlides = (heroSlides: HeroSlide[]) => update((p) => ({ ...p, heroSlides }));
