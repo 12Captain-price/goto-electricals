@@ -56,6 +56,10 @@ export type Quotation = {
   created_at: string;
 };
 
+// Unique id generator so multiple hook instances don't collide on channel names
+let channelCounter = 0;
+const nextChannelId = () => `${Date.now()}-${channelCounter++}-${Math.random().toString(36).slice(2, 7)}`;
+
 // ── Quotes (WhatsApp/Email quote requests) ──
 
 export function useQuotes() {
@@ -74,7 +78,7 @@ export function useQuotes() {
     fetchQuotes();
 
     const channel = supabase
-      .channel("quotes_changes")
+      .channel(`quotes_changes_${nextChannelId()}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "quotes" }, fetchQuotes)
       .subscribe();
 
@@ -120,7 +124,7 @@ export function useCustomers() {
     fetchCustomers();
 
     const channel = supabase
-      .channel("customers_changes")
+      .channel(`customers_changes_${nextChannelId()}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "customers" }, fetchCustomers)
       .subscribe();
 
@@ -166,7 +170,7 @@ export function useQuotations() {
     fetchQuotations();
 
     const channel = supabase
-      .channel("quotations_changes")
+      .channel(`quotations_changes_${nextChannelId()}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "quotations" }, fetchQuotations)
       .subscribe();
 
