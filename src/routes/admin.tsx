@@ -4,10 +4,10 @@ import {
   ShieldCheck, Eye, EyeOff, AlertCircle, LayoutDashboard, ImagePlus,
   Star, Phone, BarChart2, Settings, LogOut, Trash2, Plus, CheckCircle, Save,
   Image, ChevronUp, ChevronDown, Zap, X, FileText, Upload, Loader2, Award,
-  Inbox, MapPin, MessageCircle, Mail, User, Clock,
+  Inbox, MapPin, MessageCircle, Mail, User, Clock, Users, Search, StickyNote,
 } from "lucide-react";
 import { useSiteData, AUTH_KEY, type Project, type Testimonial, type HeroSlide, type Service, type ServiceOperation, type Certificate } from "@/lib/site-store";
-import { useQuotes, type Quote, type QuoteStatus } from "@/lib/quotes-store";
+import { useQuotes, useCustomers, type Quote, type QuoteStatus, type Customer } from "@/lib/quotes-store";
 import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/admin")({
@@ -75,7 +75,7 @@ function Login({ onAuth }: { onAuth: () => void }) {
   );
 }
 
-type Tab = "overview" | "hero" | "services" | "portfolio" | "certificates" | "testimonials" | "contact" | "stats" | "settings" | "quotes";
+type Tab = "overview" | "hero" | "services" | "portfolio" | "certificates" | "testimonials" | "contact" | "stats" | "settings" | "quotes" | "customers";
 
 function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [tab, setTab] = useState<Tab>("overview");
@@ -90,6 +90,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   const nav: { id: Tab; icon: typeof LayoutDashboard; label: string; badge?: number }[] = [
     { id: "overview", icon: LayoutDashboard, label: "Overview" },
     { id: "quotes", icon: Inbox, label: "Quotes", badge: newQuotesCount },
+    { id: "customers", icon: Users, label: "Customers" },
     { id: "hero", icon: Image, label: "Hero Slideshow" },
     { id: "services", icon: Zap, label: "Services" },
     { id: "portfolio", icon: ImagePlus, label: "Portfolio" },
@@ -131,6 +132,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
       <main className="ml-64 min-h-screen p-8">
         {tab === "overview" && <Overview data={data} quotes={quotes} />}
         {tab === "quotes" && <QuotesAdmin showToast={showToast} />}
+        {tab === "customers" && <CustomersAdmin showToast={showToast} />}
         {tab === "hero" && <HeroSlideshowAdmin data={data} update={update} showToast={showToast} />}
         {tab === "services" && <ServicesAdmin data={data} update={update} showToast={showToast} />}
         {tab === "portfolio" && <PortfolioAdmin data={data} update={update} showToast={showToast} />}
@@ -328,6 +330,202 @@ function QuotesAdmin({ showToast }: { showToast: (m: string) => void }) {
             />
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+// ── Customers Admin ──
+
+function CustomerModal({ customer, onClose, onSave }: {
+  customer: Customer | null; // null = creating new
+  onClose: () => void;
+  onSave: (data: { name: string; phone: string; address: string; notes: string }) => void;
+}) {
+  const [name, setName] = useState(customer?.name ?? "");
+  const [phone, setPhone] = useState(customer?.phone ?? "");
+  const [address, setAddress] = useState(customer?.address ?? "");
+  const [notes, setNotes] = useState(customer?.notes ?? "");
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-md rounded-2xl border border-white/10 bg-[#161b22] p-6 shadow-2xl">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="font-display text-lg font-semibold text-white">
+            {customer ? "Edit Customer" : "New Customer"}
+          </h3>
+          <button onClick={onClose} aria-label="Close" className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 text-white/50 hover:border-[#f97316]/50 hover:text-[#f97316]">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="space-y-3">
+          <div>
+            <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">Name</label>
+            <input value={name} onChange={(e) => setName(e.target.value)} className={inputCls} placeholder="Client or company name" />
+          </div>
+          <div>
+            <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">Phone</label>
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} className={inputCls} placeholder="+263 ..." />
+          </div>
+          <div>
+            <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">Address</label>
+            <input value={address} onChange={(e) => setAddress(e.target.value)} className={inputCls} placeholder="Suburb, city" />
+          </div>
+          <div>
+            <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">Notes</label>
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className={inputCls} placeholder="Anything worth remembering about this client..." />
+          </div>
+        </div>
+        <div className="mt-5 flex gap-2">
+          <button onClick={onClose} className="flex-1 rounded-full border border-white/10 py-2.5 text-sm text-white/70 hover:text-white">Cancel</button>
+          <button
+            onClick={() => { if (name.trim()) onSave({ name: name.trim(), phone: phone.trim(), address: address.trim(), notes: notes.trim() }); }}
+            disabled={!name.trim()}
+            className="flex-1 rounded-full bg-[#f97316] py-2.5 text-sm font-semibold text-black hover:bg-orange-400 disabled:opacity-40"
+          >
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CustomerCard({ customer, onEdit, onDelete }: {
+  customer: Customer;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-[#161b22] p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[#f97316]/10 text-[#f97316]">
+            <User className="h-4 w-4" />
+          </div>
+          <span className="font-display text-base font-semibold text-white">{customer.name}</span>
+        </div>
+        <button
+          onClick={onDelete}
+          title="Delete customer"
+          aria-label="Delete customer"
+          className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border border-[#ef4444]/40 text-[#ef4444] hover:bg-red-500/10"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      <div className="mt-3 space-y-2 text-sm">
+        {customer.phone && (
+          <div className="flex items-center gap-2 text-white/70">
+            <Phone className="h-3.5 w-3.5 flex-shrink-0 text-white/40" /> {customer.phone}
+          </div>
+        )}
+        {customer.address && (
+          <div className="flex items-center gap-2 text-white/70">
+            <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-white/40" /> {customer.address}
+          </div>
+        )}
+        {customer.notes && (
+          <div className="flex items-start gap-2 text-white/50">
+            <StickyNote className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-white/30" /> {customer.notes}
+          </div>
+        )}
+      </div>
+
+      <button
+        onClick={onEdit}
+        className="mt-4 w-full rounded-full border border-white/10 py-2 text-xs font-semibold text-white/70 hover:border-[#f97316]/50 hover:text-[#f97316]"
+      >
+        Edit
+      </button>
+    </div>
+  );
+}
+
+function CustomersAdmin({ showToast }: { showToast: (m: string) => void }) {
+  const { customers, ready, addCustomer, updateCustomer, removeCustomer } = useCustomers();
+  const [search, setSearch] = useState("");
+  const [editing, setEditing] = useState<Customer | null>(null);
+  const [creating, setCreating] = useState(false);
+
+  const filtered = customers.filter((c) =>
+    c.name.toLowerCase().includes(search.toLowerCase()) ||
+    (c.phone ?? "").includes(search)
+  );
+
+  const handleSave = async (data: { name: string; phone: string; address: string; notes: string }) => {
+    if (editing) {
+      await updateCustomer(editing.id, data);
+      showToast("Customer updated");
+      setEditing(null);
+    } else {
+      await addCustomer(data);
+      showToast("Customer added");
+      setCreating(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    await removeCustomer(id);
+    showToast("Customer deleted");
+  };
+
+  return (
+    <div>
+      <SectionTitle>Customers</SectionTitle>
+      <p className="mb-6 max-w-2xl text-sm text-white/60">
+        Save client details here so you can quickly reuse them when building a formal quotation — no need to retype
+        a repeat customer's information every time.
+      </p>
+
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <div className="relative max-w-xs flex-1">
+          <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-white/30" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name or phone..."
+            className={`${inputCls} pl-9`}
+          />
+        </div>
+        <button
+          onClick={() => setCreating(true)}
+          className="flex items-center gap-2 rounded-full bg-[#f97316] px-5 py-2 text-sm font-semibold text-black hover:bg-orange-400"
+        >
+          <Plus className="h-4 w-4" /> New Customer
+        </button>
+      </div>
+
+      {!ready ? (
+        <div className="flex justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-[#f97316]" />
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-white/10 bg-[#161b22] py-16 text-center">
+          <Users className="h-8 w-8 text-white/20" />
+          <p className="text-sm text-white/40">{search ? "No customers match your search." : "No customers saved yet."}</p>
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {filtered.map((c) => (
+            <CustomerCard
+              key={c.id}
+              customer={c}
+              onEdit={() => setEditing(c)}
+              onDelete={() => handleDelete(c.id)}
+            />
+          ))}
+        </div>
+      )}
+
+      {(editing || creating) && (
+        <CustomerModal
+          customer={editing}
+          onClose={() => { setEditing(null); setCreating(false); }}
+          onSave={handleSave}
+        />
       )}
     </div>
   );
