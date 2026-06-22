@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
   Plus, Trash2, Search, X, FileText, User, Phone,
-  Loader2, ArrowLeft, AlertCircle, Save, Download,
+  Loader2, ArrowLeft, AlertCircle, Save, Download, Copy,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -98,24 +98,37 @@ function CustomerPicker({ customers, selected, onSelect, onClear }: {
 
 // ── Builder ──
 
-function QuotationBuilder({ companyDefaultFee, onClose, onSaved }: {
+type BuilderSeed = {
+  clientName: string;
+  clientPhone: string;
+  clientAddress: string;
+  items: QuotationLineItem[];
+  calloutEnabled: boolean;
+  issuedBy: string;
+  remark: string;
+};
+
+function QuotationBuilder({ companyDefaultFee, onClose, onSaved, seed }: {
   companyDefaultFee: number;
   onClose: () => void;
   onSaved: () => void;
+  seed?: BuilderSeed;
 }) {
   const { customers } = useCustomers();
   const { addQuotation } = useQuotations();
 
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [clientName, setClientName] = useState("");
-  const [clientPhone, setClientPhone] = useState("");
-  const [clientAddress, setClientAddress] = useState("");
-  const [items, setItems] = useState<QuotationLineItem[]>([]);
-  const [calloutEnabled, setCalloutEnabled] = useState(true);
-  const [issuedBy, setIssuedBy] = useState("");
-  const [remark, setRemark] = useState("");
+  const [clientName, setClientName] = useState(seed?.clientName ?? "");
+  const [clientPhone, setClientPhone] = useState(seed?.clientPhone ?? "");
+  const [clientAddress, setClientAddress] = useState(seed?.clientAddress ?? "");
+  const [items, setItems] = useState<QuotationLineItem[]>(seed?.items ?? []);
+  const [calloutEnabled, setCalloutEnabled] = useState(seed?.calloutEnabled ?? true);
+  const [issuedBy, setIssuedBy] = useState(seed?.issuedBy ?? "");
+  const [remark, setRemark] = useState(seed?.remark ?? "");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  const isDuplicate = !!seed;
 
   const { subtotal, total } = computeQuotationTotals(items, calloutEnabled, companyDefaultFee);
 
@@ -173,8 +186,14 @@ function QuotationBuilder({ companyDefaultFee, onClose, onSaved }: {
         <ArrowLeft className="h-4 w-4" /> Back to Quotations
       </button>
 
-      <h2 className="mb-1 font-display text-xl font-bold text-white">New Quotation</h2>
-      <p className="mb-6 text-sm text-white/50">This creates a formal, numbered quotation — separate from WhatsApp quote requests.</p>
+      <h2 className="mb-1 font-display text-xl font-bold text-white">
+        {isDuplicate ? "Duplicate Quotation" : "New Quotation"}
+      </h2>
+      <p className="mb-6 text-sm text-white/50">
+        {isDuplicate
+          ? "Pre-filled from the original — edit anything, then save to create a new numbered quotation."
+          : "This creates a formal, numbered quotation — separate from WhatsApp quote requests."}
+      </p>
 
       {/* Customer */}
       <div className="mb-6 rounded-2xl border border-white/10 bg-[#161b22] p-5">
@@ -310,7 +329,8 @@ function QuotationBuilder({ companyDefaultFee, onClose, onSaved }: {
         disabled={saving}
         className="flex w-full items-center justify-center gap-2 rounded-full bg-[#f97316] py-3 text-sm font-semibold text-black hover:bg-orange-400 disabled:opacity-60"
       >
-        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save Quotation
+        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+        {isDuplicate ? "Save as New Quotation" : "Save Quotation"}
       </button>
     </div>
   );
@@ -318,7 +338,11 @@ function QuotationBuilder({ companyDefaultFee, onClose, onSaved }: {
 
 // ── Quotation Card ──
 
-function QuotationCard({ q, contact }: { q: Quotation; contact: ContactInfo }) {
+function QuotationCard({ q, contact, onDuplicate }: {
+  q: Quotation;
+  contact: ContactInfo;
+  onDuplicate: (seed: BuilderSeed) => void;
+}) {
   const [downloading, setDownloading] = useState(false);
   const [dlErr, setDlErr] = useState<string | null>(null);
   const date = new Date(q.created_at);
@@ -333,6 +357,18 @@ function QuotationCard({ q, contact }: { q: Quotation; contact: ContactInfo }) {
       setDlErr("PDF generation failed — please try again.");
     }
     setDownloading(false);
+  };
+
+  const handleDuplicate = () => {
+    onDuplicate({
+      clientName: q.customer_snapshot.name,
+      clientPhone: q.customer_snapshot.phone ?? "",
+      clientAddress: q.customer_snapshot.address ?? "",
+      items: q.line_items.map((it) => ({ ...it })),
+      calloutEnabled: q.callout_fee_enabled,
+      issuedBy: q.issued_by,
+      remark: q.remark ?? "",
+    });
   };
 
   return (
@@ -369,17 +405,27 @@ function QuotationCard({ q, contact }: { q: Quotation; contact: ContactInfo }) {
         </div>
       )}
 
-      <button
-        onClick={handleDownload}
-        disabled={downloading}
-        className="mt-4 flex w-full items-center justify-center gap-2 rounded-full border border-[#f97316]/40 py-2.5 text-sm font-semibold text-[#f97316] hover:bg-[#f97316]/10 disabled:opacity-50"
-      >
-        {downloading ? (
-          <><Loader2 className="h-4 w-4 animate-spin" /> Generating PDF...</>
-        ) : (
-          <><Download className="h-4 w-4" /> Download PDF</>
-        )}
-      </button>
+      <div className="mt-4 flex gap-2">
+        <button
+          onClick={handleDownload}
+          disabled={downloading}
+          className="flex flex-1 items-center justify-center gap-2 rounded-full border border-[#f97316]/40 py-2.5 text-sm font-semibold text-[#f97316] hover:bg-[#f97316]/10 disabled:opacity-50"
+        >
+          {downloading ? (
+            <><Loader2 className="h-4 w-4 animate-spin" /> Generating...</>
+          ) : (
+            <><Download className="h-4 w-4" /> PDF</>
+          )}
+        </button>
+        <button
+          onClick={handleDuplicate}
+          title="Duplicate this quotation"
+          aria-label="Duplicate quotation"
+          className="flex items-center justify-center gap-2 rounded-full border border-white/10 px-4 py-2.5 text-sm font-semibold text-white/60 hover:border-white/30 hover:text-white"
+        >
+          <Copy className="h-4 w-4" /> Duplicate
+        </button>
+      </div>
     </div>
   );
 }
@@ -395,13 +441,25 @@ export function QuotationsAdmin({
 }) {
   const { quotations, ready } = useQuotations();
   const [view, setView] = useState<"list" | "builder">("list");
+  const [builderSeed, setBuilderSeed] = useState<BuilderSeed | undefined>(undefined);
+
+  const openBuilder = (seed?: BuilderSeed) => {
+    setBuilderSeed(seed);
+    setView("builder");
+  };
+
+  const closeBuilder = () => {
+    setBuilderSeed(undefined);
+    setView("list");
+  };
 
   if (view === "builder") {
     return (
       <QuotationBuilder
         companyDefaultFee={defaultCalloutFee}
-        onClose={() => setView("list")}
-        onSaved={() => setView("list")}
+        onClose={closeBuilder}
+        onSaved={closeBuilder}
+        seed={builderSeed}
       />
     );
   }
@@ -411,7 +469,7 @@ export function QuotationsAdmin({
       <div className="mb-8 flex items-center justify-between">
         <h1 className="font-display text-2xl font-bold">Quotations</h1>
         <button
-          onClick={() => setView("builder")}
+          onClick={() => openBuilder()}
           className="flex items-center gap-2 rounded-full bg-[#f97316] px-5 py-2 text-sm font-semibold text-black hover:bg-orange-400"
         >
           <Plus className="h-4 w-4" /> New Quotation
@@ -433,7 +491,12 @@ export function QuotationsAdmin({
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {quotations.map((q) => (
-            <QuotationCard key={q.id} q={q} contact={contact} />
+            <QuotationCard
+              key={q.id}
+              q={q}
+              contact={contact}
+              onDuplicate={(seed) => openBuilder(seed)}
+            />
           ))}
         </div>
       )}
