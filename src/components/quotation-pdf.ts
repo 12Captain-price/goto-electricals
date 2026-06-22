@@ -43,11 +43,11 @@ function buildTemplate(
   const ORANGE = "#f97316";
   const BG = "#ffffff";
   const TEXT = "#111827";
-  const MUTED = "#6b7280";
-  const BORDER = "#e5e7eb";
+  const MUTED = "#374151";  // clear dark grey for secondary text
+  const BORDER = "#d1d5db";
   const CALLOUT_BG = "#fff7ed";
   const CALLOUT_BORDER = "#fed7aa";
-  const W = 794; // A4 width at 1× (halved from 1587) — renders fast and small
+  const W = 1240; // good balance: sharp text, reasonable file size
 
   const rows = q.line_items
     .map(
@@ -70,7 +70,7 @@ function buildTemplate(
     : "";
 
   const logoHtml = logoDataUrl
-    ? `<img src="${logoDataUrl}" style="max-height:80px;max-width:180px;object-fit:contain;display:block;margin-left:auto;" alt="Logo" />`
+    ? `<img src="${logoDataUrl}" style="max-height:100px;max-width:200px;object-fit:contain;display:block;margin-left:auto;" alt="Logo" />`
     : `<div style="width:120px;height:60px;"></div>`;
 
   const vatLine = contact.vat ? `<div style="font-size:13px;color:${MUTED};">VAT No: ${contact.vat}</div>` : "";
@@ -187,21 +187,43 @@ export async function downloadQuotationPdf(
 
   try {
     const dataUrl = await toJpeg(el, {
-      pixelRatio: 1.5,        // 1× looks crisp enough; 2× was the size culprit
+      pixelRatio: 1.8,        // sharp enough for print without bloating file size
       backgroundColor: "#ffffff",
       quality: 0.82,          // JPEG compression — invisible difference, huge size saving
       skipFonts: false,
     });
 
-    // Lock to true A4 (210x297mm) so it prints full-size on A4 bond paper.
+    // Measure the captured image and scale it to A4 width (210mm),
+    // preserving the correct aspect ratio so text is never stretched.
+    const imgEl = new Image();
+    await new Promise<void>((res) => { imgEl.onload = () => res(); imgEl.src = dataUrl; });
+    const imgW = imgEl.naturalWidth;
+    const imgH = imgEl.naturalHeight;
+
+    const PAGE_W = 210;   // A4 width in mm
+    const PAGE_H = 297;   // A4 height in mm
+    // Scale image to fill page width; if shorter than A4 height that's fine
+    const scaledH = (imgH / imgW) * PAGE_W;
+
     const pdf = new jsPDF({
       orientation: "portrait",
       unit: "mm",
       format: "a4",
     });
 
-    // Stretch image to fill entire A4 page — no margins, no tiny box
-    pdf.addImage(dataUrl, "JPEG", 0, 0, 210, 297);
+    // Place image at top-left, correct proportions — never stretch height to 297
+    pdf.addImage(dataUrl, "JPEG", 0, 0, PAGE_W, scaledH);
+
+    // If content is taller than one A4 page, add more pages
+    if (scaledH > PAGE_H) {
+      let yOffset = -PAGE_H;
+      while (yOffset > -scaledH) {
+        pdf.addPage();
+        pdf.addImage(dataUrl, "JPEG", 0, yOffset, PAGE_W, scaledH);
+        yOffset -= PAGE_H;
+      }
+    }
+
     pdf.save(`${q.quote_number}-Go-To-Electricals.pdf`);
   } finally {
     document.body.removeChild(container);
