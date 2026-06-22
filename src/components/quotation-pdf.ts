@@ -82,7 +82,7 @@ function buildTemplate(
   <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:56px;">
     <div>
       <div style="font-size:26px;font-weight:800;letter-spacing:-0.5px;margin-bottom:4px;">
-        <span style="color:${ORANGE};">GO TO</span> ELECTRICALS
+        <span style="color:${ORANGE};">GOW TO</span> ELECTRICALS
       </div>
       <div style="margin-top:8px;display:flex;flex-direction:column;gap:4px;">
         ${contact.address ? `<div style="font-size:13px;color:${MUTED};">${contact.address}</div>` : ""}
@@ -165,7 +165,7 @@ function buildTemplate(
 
   <div style="margin-top:48px;padding-top:20px;border-top:1px solid ${BORDER};display:flex;justify-content:space-between;align-items:center;">
     <div style="font-size:11px;color:${MUTED};">${contact.email || ""} · ${contact.phone || ""}</div>
-    <div style="font-size:11px;color:${MUTED};">${q.quote_number} · Go To Electricals</div>
+    <div style="font-size:11px;color:${MUTED};">${q.quote_number} · Gow To Electricals</div>
   </div>
 
 </div>`;
@@ -224,7 +224,7 @@ export async function downloadQuotationPdf(
       }
     }
 
-    pdf.save(`${q.quote_number}-Go-To-Electricals.pdf`);
+    pdf.save(`${q.quote_number}-Gow-To-Electricals.pdf`);
   } finally {
     document.body.removeChild(container);
   }
