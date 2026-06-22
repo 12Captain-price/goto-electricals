@@ -1,103 +1,15 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
-  Plus, Trash2, Search, X, ChevronDown, FileText, User, Phone, MapPin,
-  CheckCircle, Loader2, ArrowLeft, Zap, AlertCircle, Save,
+  Plus, Trash2, Search, X, FileText, User, Phone,
+  Loader2, ArrowLeft, AlertCircle, Save,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import type { Service } from "@/lib/site-store";
 import {
   useQuotations, useCustomers, computeQuotationTotals,
   type Quotation, type QuotationLineItem, type Customer,
 } from "@/lib/quotes-store";
 
 const inputCls = "w-full rounded-xl border border-white/10 bg-[#0d1117] px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-[#f97316] focus:outline-none";
-
-// ── Searchable operation picker (nice combobox, not a plain <select>) ──
-
-type FlatOperation = { serviceTitle: string; name: string; price: string };
-
-function OperationPicker({ services, onPick }: { services: Service[]; onPick: (op: FlatOperation) => void }) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-
-  const flatOps: FlatOperation[] = useMemo(() => {
-    const list: FlatOperation[] = [];
-    services.forEach((s) => {
-      s.operations.forEach((op) => {
-        if (op.name.trim()) list.push({ serviceTitle: s.title, name: op.name, price: op.price });
-      });
-    });
-    return list;
-  }, [services]);
-
-  const filtered = flatOps.filter(
-    (op) =>
-      op.name.toLowerCase().includes(query.toLowerCase()) ||
-      op.serviceTitle.toLowerCase().includes(query.toLowerCase())
-  );
-
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 rounded-full border border-white/10 px-3 py-1.5 text-xs font-semibold text-white/60 transition hover:border-[#f97316]/50 hover:text-[#f97316]"
-      >
-        <Zap className="h-3 w-3" /> Pick from Services <ChevronDown className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
-
-      <AnimatePresence>
-        {open && (
-          <>
-            <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-            <motion.div
-              initial={{ opacity: 0, y: -8, scale: 0.97 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -8, scale: 0.97 }}
-              transition={{ duration: 0.15 }}
-              className="absolute left-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-2xl border border-white/10 bg-[#161b22] shadow-2xl"
-            >
-              <div className="border-b border-white/10 p-3">
-                <div className="relative">
-                  <Search className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-white/30" />
-                  <input
-                    autoFocus
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Search operations..."
-                    className={`${inputCls} pl-8 text-xs`}
-                  />
-                </div>
-              </div>
-              <div className="max-h-64 overflow-y-auto p-2">
-                {filtered.length === 0 ? (
-                  <p className="px-3 py-6 text-center text-xs text-white/30">
-                    {flatOps.length === 0 ? "No service operations set up yet." : "No matches."}
-                  </p>
-                ) : (
-                  filtered.map((op, i) => (
-                    <button
-                      key={`${op.serviceTitle}-${op.name}-${i}`}
-                      type="button"
-                      onClick={() => { onPick(op); setOpen(false); setQuery(""); }}
-                      className="flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-left transition hover:bg-[#f97316]/10"
-                    >
-                      <div className="min-w-0">
-                        <div className="truncate text-sm text-white">{op.name}</div>
-                        <div className="truncate font-mono text-[10px] uppercase tracking-wider text-white/30">{op.serviceTitle}</div>
-                      </div>
-                      <span className="flex-shrink-0 font-mono text-xs font-semibold text-[#f97316]">{op.price}</span>
-                    </button>
-                  ))
-                )}
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
 
 // ── Customer search/select combobox ──
 
@@ -184,8 +96,7 @@ function CustomerPicker({ customers, selected, onSelect, onClear }: {
 
 // ── Builder ──
 
-function QuotationBuilder({ services, companyDefaultFee, onClose, onSaved }: {
-  services: Service[];
+function QuotationBuilder({ companyDefaultFee, onClose, onSaved }: {
   companyDefaultFee: number;
   onClose: () => void;
   onSaved: () => void;
@@ -225,11 +136,6 @@ function QuotationBuilder({ services, companyDefaultFee, onClose, onSaved }: {
   };
 
   const removeLineItem = (idx: number) => setItems(items.filter((_, i) => i !== idx));
-
-  const handlePickOperation = (idx: number, op: FlatOperation) => {
-    const price = parseFloat(op.price.replace(/[^0-9.]/g, "")) || 0;
-    updateLineItem(idx, { description: op.name, unit_price: price });
-  };
 
   const handleSave = async () => {
     setErr(null);
@@ -293,8 +199,7 @@ function QuotationBuilder({ services, companyDefaultFee, onClose, onSaved }: {
         <div className="space-y-3">
           {items.map((item, idx) => (
             <div key={idx} className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
-              <div className="mb-2 flex items-center justify-between">
-                <OperationPicker services={services} onPick={(op) => handlePickOperation(idx, op)} />
+              <div className="mb-2 flex items-center justify-end">
                 <button
                   onClick={() => removeLineItem(idx)}
                   aria-label="Remove line item"
@@ -303,29 +208,41 @@ function QuotationBuilder({ services, companyDefaultFee, onClose, onSaved }: {
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
               </div>
-              <div className="grid gap-2 md:grid-cols-[1fr_100px_70px_90px]">
-                <input
-                  value={item.description}
-                  onChange={(e) => updateLineItem(idx, { description: e.target.value })}
-                  placeholder="Description"
-                  className={inputCls}
-                />
-                <input
-                  type="number"
-                  value={item.unit_price}
-                  onChange={(e) => updateLineItem(idx, { unit_price: parseFloat(e.target.value) || 0 })}
-                  placeholder="Price"
-                  className={inputCls}
-                />
-                <input
-                  type="number"
-                  value={item.qty}
-                  onChange={(e) => updateLineItem(idx, { qty: parseFloat(e.target.value) || 1 })}
-                  placeholder="Qty"
-                  className={inputCls}
-                />
-                <div className="flex items-center justify-end rounded-xl border border-white/10 bg-[#0d1117] px-3 py-2 text-sm font-semibold text-[#f97316]">
-                  ${item.total.toFixed(2)}
+              <div className="grid gap-3 md:grid-cols-[1fr_110px_90px_110px]">
+                <div>
+                  <label className="mb-1 block font-mono text-[9px] uppercase tracking-[0.15em] text-white/30">Description</label>
+                  <input
+                    value={item.description}
+                    onChange={(e) => updateLineItem(idx, { description: e.target.value })}
+                    placeholder="e.g. DB Board Upgrade"
+                    className={inputCls}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block font-mono text-[9px] uppercase tracking-[0.15em] text-white/30">Unit Price ($)</label>
+                  <input
+                    type="number"
+                    value={item.unit_price}
+                    onChange={(e) => updateLineItem(idx, { unit_price: parseFloat(e.target.value) || 0 })}
+                    placeholder="0.00"
+                    className={inputCls}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block font-mono text-[9px] uppercase tracking-[0.15em] text-white/30">Quantity</label>
+                  <input
+                    type="number"
+                    value={item.qty}
+                    onChange={(e) => updateLineItem(idx, { qty: parseFloat(e.target.value) || 1 })}
+                    placeholder="1"
+                    className={inputCls}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block font-mono text-[9px] uppercase tracking-[0.15em] text-white/30">Line Total</label>
+                  <div className="flex items-center justify-end rounded-xl border border-white/10 bg-[#0d1117] px-3 py-2 text-sm font-semibold text-[#f97316]">
+                    ${item.total.toFixed(2)}
+                  </div>
                 </div>
               </div>
             </div>
@@ -425,14 +342,13 @@ function QuotationCard({ q }: { q: Quotation }) {
   );
 }
 
-export function QuotationsAdmin({ services, defaultCalloutFee }: { services: Service[]; defaultCalloutFee: number }) {
+export function QuotationsAdmin({ defaultCalloutFee }: { defaultCalloutFee: number }) {
   const { quotations, ready } = useQuotations();
   const [view, setView] = useState<"list" | "builder">("list");
 
   if (view === "builder") {
     return (
       <QuotationBuilder
-        services={services}
         companyDefaultFee={defaultCalloutFee}
         onClose={() => setView("list")}
         onSaved={() => setView("list")}

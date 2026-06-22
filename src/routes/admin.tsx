@@ -135,7 +135,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
         {tab === "overview" && <Overview data={data} quotes={quotes} />}
         {tab === "quotes" && <QuotesAdmin showToast={showToast} />}
         {tab === "customers" && <CustomersAdmin showToast={showToast} />}
-        {tab === "quotations" && <QuotationsAdmin services={data.services} defaultCalloutFee={15} />}
+        {tab === "quotations" && <QuotationsAdmin defaultCalloutFee={15} />}
         {tab === "hero" && <HeroSlideshowAdmin data={data} update={update} showToast={showToast} />}
         {tab === "services" && <ServicesAdmin data={data} update={update} showToast={showToast} />}
         {tab === "portfolio" && <PortfolioAdmin data={data} update={update} showToast={showToast} />}
@@ -647,21 +647,27 @@ function OperationsModal({ service, onClose, onSave }: { service: Service; onClo
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="space-y-2">
+        <div className="space-y-3">
           {ops.map((op) => (
-            <div key={op.id} className="flex items-center gap-2">
-              <input
-                value={op.name}
-                onChange={(e) => updateOp(op.id, { name: e.target.value })}
-                placeholder="Operation name"
-                className={`${inputCls} flex-1`}
-              />
-              <input
-                value={op.price}
-                onChange={(e) => updateOp(op.id, { price: e.target.value })}
-                placeholder="Price (e.g. $25)"
-                className={`${inputCls} w-28`}
-              />
+            <div key={op.id} className="flex items-end gap-2">
+              <div className="flex-1">
+                <label className="mb-1 block font-mono text-[9px] uppercase tracking-[0.15em] text-white/30">Operation Name</label>
+                <input
+                  value={op.name}
+                  onChange={(e) => updateOp(op.id, { name: e.target.value })}
+                  placeholder="e.g. Fault diagnosis"
+                  className={inputCls}
+                />
+              </div>
+              <div className="w-28">
+                <label className="mb-1 block font-mono text-[9px] uppercase tracking-[0.15em] text-white/30">Price</label>
+                <input
+                  value={op.price}
+                  onChange={(e) => updateOp(op.id, { price: e.target.value })}
+                  placeholder="$25"
+                  className={inputCls}
+                />
+              </div>
               <button
                 onClick={() => removeOp(op.id)}
                 aria-label="Delete operation"
