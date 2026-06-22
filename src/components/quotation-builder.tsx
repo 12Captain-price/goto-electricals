@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Plus, Trash2, Search, X, FileText, User, Phone,
   Loader2, ArrowLeft, AlertCircle, Save, Download, Copy,
@@ -96,9 +96,9 @@ function CustomerPicker({ customers, selected, onSelect, onClear }: {
   );
 }
 
-// ── Builder ──
+// ── Shared seed type (used by duplicate + convert-to-quotation) ──
 
-type BuilderSeed = {
+export type BuilderSeed = {
   clientName: string;
   clientPhone: string;
   clientAddress: string;
@@ -107,6 +107,8 @@ type BuilderSeed = {
   issuedBy: string;
   remark: string;
 };
+
+// ── Builder ──
 
 function QuotationBuilder({ companyDefaultFee, onClose, onSaved, seed }: {
   companyDefaultFee: number;
@@ -128,7 +130,8 @@ function QuotationBuilder({ companyDefaultFee, onClose, onSaved, seed }: {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const isDuplicate = !!seed;
+  const isDuplicate = !!seed && seed.items.length > 0;
+  const isConvert = !!seed && seed.items.length === 0;
 
   const { subtotal, total } = computeQuotationTotals(items, calloutEnabled, companyDefaultFee);
 
@@ -187,11 +190,13 @@ function QuotationBuilder({ companyDefaultFee, onClose, onSaved, seed }: {
       </button>
 
       <h2 className="mb-1 font-display text-xl font-bold text-white">
-        {isDuplicate ? "Duplicate Quotation" : "New Quotation"}
+        {isDuplicate ? "Duplicate Quotation" : isConvert ? "New Quotation from Quote Request" : "New Quotation"}
       </h2>
       <p className="mb-6 text-sm text-white/50">
         {isDuplicate
           ? "Pre-filled from the original — edit anything, then save to create a new numbered quotation."
+          : isConvert
+          ? "Client details pre-filled from the quote request — add your line items and save."
           : "This creates a formal, numbered quotation — separate from WhatsApp quote requests."}
       </p>
 
@@ -435,13 +440,26 @@ function QuotationCard({ q, contact, onDuplicate }: {
 export function QuotationsAdmin({
   defaultCalloutFee,
   contact,
+  incomingSeed,
+  onSeedConsumed,
 }: {
   defaultCalloutFee: number;
   contact: ContactInfo;
+  incomingSeed?: BuilderSeed;
+  onSeedConsumed?: () => void;
 }) {
   const { quotations, ready } = useQuotations();
   const [view, setView] = useState<"list" | "builder">("list");
   const [builderSeed, setBuilderSeed] = useState<BuilderSeed | undefined>(undefined);
+
+  // When Dashboard passes an incomingSeed (from Convert to Quotation), open the builder immediately
+  useEffect(() => {
+    if (incomingSeed) {
+      setBuilderSeed(incomingSeed);
+      setView("builder");
+      onSeedConsumed?.();
+    }
+  }, [incomingSeed]);
 
   const openBuilder = (seed?: BuilderSeed) => {
     setBuilderSeed(seed);

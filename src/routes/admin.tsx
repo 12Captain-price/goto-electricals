@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { useSiteData, AUTH_KEY, type Project, type Testimonial, type HeroSlide, type Service, type ServiceOperation, type Certificate } from "@/lib/site-store";
 import { useQuotes, useCustomers, type Quote, type QuoteStatus, type Customer } from "@/lib/quotes-store";
-import { QuotationsAdmin } from "@/components/quotation-builder";
+import { QuotationsAdmin, type BuilderSeed } from "@/components/quotation-builder";
 import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/admin")({
@@ -83,8 +83,14 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   const { data, update } = useSiteData();
   const { quotes } = useQuotes();
   const [toast, setToast] = useState<string | null>(null);
+  const [pendingSeed, setPendingSeed] = useState<BuilderSeed | undefined>(undefined);
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
+
+  const convertToQuotation = (seed: BuilderSeed) => {
+    setPendingSeed(seed);
+    setTab("quotations");
+  };
 
   const newQuotesCount = quotes.filter((q) => q.status === "new").length;
 
@@ -133,9 +139,16 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
 
       <main className="ml-64 min-h-screen p-8">
         {tab === "overview" && <Overview data={data} quotes={quotes} />}
-        {tab === "quotes" && <QuotesAdmin showToast={showToast} />}
+        {tab === "quotes" && <QuotesAdmin showToast={showToast} onConvert={convertToQuotation} />}
         {tab === "customers" && <CustomersAdmin showToast={showToast} />}
-        {tab === "quotations" && <QuotationsAdmin defaultCalloutFee={15} contact={data.contact} />}
+        {tab === "quotations" && (
+          <QuotationsAdmin
+            defaultCalloutFee={15}
+            contact={data.contact}
+            incomingSeed={pendingSeed}
+            onSeedConsumed={() => setPendingSeed(undefined)}
+          />
+        )}
         {tab === "hero" && <HeroSlideshowAdmin data={data} update={update} showToast={showToast} />}
         {tab === "services" && <ServicesAdmin data={data} update={update} showToast={showToast} />}
         {tab === "portfolio" && <PortfolioAdmin data={data} update={update} showToast={showToast} />}
@@ -194,10 +207,11 @@ const STATUS_CONFIG: Record<QuoteStatus, { label: string; color: string; bg: str
 
 const STATUS_ORDER: QuoteStatus[] = ["new", "contacted", "quoted", "closed"];
 
-function QuoteCard({ quote, onStatusChange, onDelete }: {
+function QuoteCard({ quote, onStatusChange, onDelete, onConvert }: {
   quote: Quote;
   onStatusChange: (status: QuoteStatus) => void;
   onDelete: () => void;
+  onConvert: () => void;
 }) {
   const cfg = STATUS_CONFIG[quote.status];
   const date = new Date(quote.created_at);
@@ -208,14 +222,24 @@ function QuoteCard({ quote, onStatusChange, onDelete }: {
         <span className={`flex items-center gap-1.5 rounded-full ${cfg.bg} px-3 py-1 font-mono text-[10px] uppercase tracking-wider ${cfg.color}`}>
           <CheckCircle className="h-3 w-3" /> {cfg.label}
         </span>
-        <button
-          onClick={onDelete}
-          title="Delete quote"
-          aria-label="Delete quote"
-          className="flex h-7 w-7 items-center justify-center rounded-full border border-[#ef4444]/40 text-[#ef4444] hover:bg-red-500/10"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={onConvert}
+            title="Convert to quotation"
+            aria-label="Convert to quotation"
+            className="flex items-center gap-1.5 rounded-full border border-[#a855f7]/40 bg-[#a855f7]/10 px-3 py-1 font-mono text-[10px] uppercase tracking-wider text-[#a855f7] hover:bg-[#a855f7]/20"
+          >
+            <FileSignature className="h-3 w-3" /> Quote
+          </button>
+          <button
+            onClick={onDelete}
+            title="Delete quote"
+            aria-label="Delete quote"
+            className="flex h-7 w-7 items-center justify-center rounded-full border border-[#ef4444]/40 text-[#ef4444] hover:bg-red-500/10"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
 
       <div className="mt-4 flex items-center gap-2">
@@ -271,7 +295,10 @@ function QuoteCard({ quote, onStatusChange, onDelete }: {
   );
 }
 
-function QuotesAdmin({ showToast }: { showToast: (m: string) => void }) {
+function QuotesAdmin({ showToast, onConvert }: {
+  showToast: (m: string) => void;
+  onConvert: (seed: BuilderSeed) => void;
+}) {
   const { quotes, ready, updateStatus, removeQuote } = useQuotes();
   const [filter, setFilter] = useState<QuoteStatus | "all">("all");
 
@@ -330,6 +357,15 @@ function QuotesAdmin({ showToast }: { showToast: (m: string) => void }) {
               quote={q}
               onStatusChange={(status) => handleStatusChange(q.id, status)}
               onDelete={() => handleDelete(q.id)}
+              onConvert={() => onConvert({
+                clientName: q.name,
+                clientPhone: q.phone,
+                clientAddress: q.location ?? "",
+                items: [],
+                calloutEnabled: true,
+                issuedBy: "",
+                remark: q.service,
+              })}
             />
           ))}
         </div>
@@ -341,7 +377,7 @@ function QuotesAdmin({ showToast }: { showToast: (m: string) => void }) {
 // ── Customers Admin ──
 
 function CustomerModal({ customer, onClose, onSave }: {
-  customer: Customer | null; // null = creating new
+  customer: Customer | null;
   onClose: () => void;
   onSave: (data: { name: string; phone: string; address: string; notes: string }) => void;
 }) {
@@ -580,30 +616,13 @@ function HeroSlideshowAdmin({ data, update, showToast }: { data: ReturnType<type
             <div className="mt-3 flex items-center justify-between">
               <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">Slide {i + 1}</span>
               <div className="flex gap-1">
-                <button
-                  onClick={() => moveSlide(s.id, -1)}
-                  disabled={i === 0}
-                  title="Move earlier"
-                  aria-label="Move earlier"
-                  className="rounded-full border border-white/10 p-1.5 text-white/50 transition hover:text-white disabled:opacity-30"
-                >
+                <button onClick={() => moveSlide(s.id, -1)} disabled={i === 0} title="Move earlier" aria-label="Move earlier" className="rounded-full border border-white/10 p-1.5 text-white/50 transition hover:text-white disabled:opacity-30">
                   <ChevronUp className="h-3.5 w-3.5" />
                 </button>
-                <button
-                  onClick={() => moveSlide(s.id, 1)}
-                  disabled={i === data.heroSlides.length - 1}
-                  title="Move later"
-                  aria-label="Move later"
-                  className="rounded-full border border-white/10 p-1.5 text-white/50 transition hover:text-white disabled:opacity-30"
-                >
+                <button onClick={() => moveSlide(s.id, 1)} disabled={i === data.heroSlides.length - 1} title="Move later" aria-label="Move later" className="rounded-full border border-white/10 p-1.5 text-white/50 transition hover:text-white disabled:opacity-30">
                   <ChevronDown className="h-3.5 w-3.5" />
                 </button>
-                <button
-                  onClick={() => removeSlide(s.id)}
-                  title="Delete slide"
-                  aria-label="Delete slide"
-                  className="rounded-full border border-[#ef4444]/40 p-1.5 text-[#ef4444] hover:bg-red-500/10"
-                >
+                <button onClick={() => removeSlide(s.id)} title="Delete slide" aria-label="Delete slide" className="rounded-full border border-[#ef4444]/40 p-1.5 text-[#ef4444] hover:bg-red-500/10">
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
               </div>
@@ -614,13 +633,7 @@ function HeroSlideshowAdmin({ data, update, showToast }: { data: ReturnType<type
           <Plus className="h-5 w-5" />
           <span className="text-sm font-semibold">Add slide(s)</span>
           <span className="text-xs text-[#f97316]/70">Select one or more photos</span>
-          <input
-            type="file"
-            accept="image/*"
-            multiple
-            className="hidden"
-            onChange={(e) => { if (e.target.files?.length) handleFiles(e.target.files); }}
-          />
+          <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => { if (e.target.files?.length) handleFiles(e.target.files); }} />
         </label>
       </div>
     </div>
@@ -652,35 +665,19 @@ function OperationsModal({ service, onClose, onSave }: { service: Service; onClo
             <div key={op.id} className="flex items-end gap-2">
               <div className="flex-1">
                 <label className="mb-1 block font-mono text-[9px] uppercase tracking-[0.15em] text-white/30">Operation Name</label>
-                <input
-                  value={op.name}
-                  onChange={(e) => updateOp(op.id, { name: e.target.value })}
-                  placeholder="e.g. Fault diagnosis"
-                  className={inputCls}
-                />
+                <input value={op.name} onChange={(e) => updateOp(op.id, { name: e.target.value })} placeholder="e.g. Fault diagnosis" className={inputCls} />
               </div>
               <div className="w-28">
                 <label className="mb-1 block font-mono text-[9px] uppercase tracking-[0.15em] text-white/30">Price</label>
-                <input
-                  value={op.price}
-                  onChange={(e) => updateOp(op.id, { price: e.target.value })}
-                  placeholder="$25"
-                  className={inputCls}
-                />
+                <input value={op.price} onChange={(e) => updateOp(op.id, { price: e.target.value })} placeholder="$25" className={inputCls} />
               </div>
-              <button
-                onClick={() => removeOp(op.id)}
-                aria-label="Delete operation"
-                className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border border-[#ef4444]/40 text-[#ef4444] hover:bg-red-500/10"
-              >
+              <button onClick={() => removeOp(op.id)} aria-label="Delete operation" className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border border-[#ef4444]/40 text-[#ef4444] hover:bg-red-500/10">
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
             </div>
           ))}
           {ops.length === 0 && (
-            <p className="rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/40">
-              No operations added yet.
-            </p>
+            <p className="rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/40">No operations added yet.</p>
           )}
         </div>
         <button onClick={addOp} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#f97316]/40 py-2.5 text-sm text-[#f97316] hover:bg-[#f97316]/5">
@@ -688,12 +685,7 @@ function OperationsModal({ service, onClose, onSave }: { service: Service; onClo
         </button>
         <div className="mt-5 flex gap-2">
           <button onClick={onClose} className="flex-1 rounded-full border border-white/10 py-2.5 text-sm text-white/70 hover:text-white">Close</button>
-          <button
-            onClick={() => { onSave(ops); onClose(); }}
-            className="flex-1 rounded-full bg-[#f97316] py-2.5 text-sm font-semibold text-black hover:bg-orange-400"
-          >
-            Save Operations
-          </button>
+          <button onClick={() => { onSave(ops); onClose(); }} className="flex-1 rounded-full bg-[#f97316] py-2.5 text-sm font-semibold text-black hover:bg-orange-400">Save Operations</button>
         </div>
       </div>
     </div>
@@ -724,17 +716,11 @@ function ServicesAdmin({ data, update, showToast }: { data: ReturnType<typeof us
               <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">
                 {s.operations.length} operation{s.operations.length === 1 ? "" : "s"}
               </span>
-              <button
-                onClick={() => setEditing(s)}
-                className="rounded-full border border-white/10 px-4 py-1.5 text-xs font-semibold text-white/70 hover:border-[#f97316]/50 hover:text-[#f97316]"
-              >
+              <button onClick={() => setEditing(s)} className="rounded-full border border-white/10 px-4 py-1.5 text-xs font-semibold text-white/70 hover:border-[#f97316]/50 hover:text-[#f97316]">
                 View / Edit Operations
               </button>
             </div>
-            <button
-              onClick={() => { update((p) => ({ ...p, services: data.services })); showToast(`"${s.title}" saved`); }}
-              className="mt-3 flex items-center gap-1 rounded-full bg-[#f97316] px-4 py-2 text-xs font-semibold text-black"
-            >
+            <button onClick={() => { update((p) => ({ ...p, services: data.services })); showToast(`"${s.title}" saved`); }} className="mt-3 flex items-center gap-1 rounded-full bg-[#f97316] px-4 py-2 text-xs font-semibold text-black">
               <Save className="h-3 w-3" /> Save
             </button>
           </div>
@@ -753,17 +739,13 @@ function ServicesAdmin({ data, update, showToast }: { data: ReturnType<typeof us
 
 function PortfolioAdmin({ data, update, showToast }: { data: ReturnType<typeof useSiteData>["data"]; update: ReturnType<typeof useSiteData>["update"]; showToast: (m: string) => void }) {
   const setProjects = (projects: Project[]) => update((p) => ({ ...p, projects }));
-
   const updateProject = (id: string, patch: Partial<Project>) =>
     setProjects(data.projects.map((p) => (p.id === id ? { ...p, ...patch } : p)));
-
   const removeProject = (id: string) => setProjects(data.projects.filter((p) => p.id !== id));
-
   const addProject = () => {
     const id = `p${Date.now()}`;
     setProjects([...data.projects, { id, tag: "0X / new", title: "New Project", description: "Description goes here.", chips: ["Tag"] }]);
   };
-
   const handleImage = (id: string, file: File) => {
     const reader = new FileReader();
     reader.onload = () => updateProject(id, { image: reader.result as string });
@@ -829,21 +811,15 @@ function CertificatesAdmin({ data, update, showToast }: { data: ReturnType<typeo
       try {
         const isPdf = file.type === "application/pdf";
         const isImage = file.type.startsWith("image/");
-        if (!isPdf && !isImage) {
-          throw new Error(`${file.name}: only images or PDF files are supported`);
-        }
+        if (!isPdf && !isImage) throw new Error(`${file.name}: only images or PDF files are supported`);
 
         const ext = file.name.split(".").pop() || (isPdf ? "pdf" : "jpg");
         const path = `cert-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
-        const { error: uploadError } = await supabase.storage
-          .from("certificates")
-          .upload(path, file, { contentType: file.type });
-
+        const { error: uploadError } = await supabase.storage.from("certificates").upload(path, file, { contentType: file.type });
         if (uploadError) throw uploadError;
 
         const { data: urlData } = supabase.storage.from("certificates").getPublicUrl(path);
-
         newCerts.push({
           id: `c${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
           title: file.name.replace(/\.[^.]+$/, ""),
@@ -907,27 +883,10 @@ function CertificatesAdmin({ data, update, showToast }: { data: ReturnType<typeo
                 <FileText className="h-10 w-10 text-white/30" />
               )}
             </div>
-            <input
-              value={c.title}
-              onChange={(e) => updateTitle(c.id, e.target.value)}
-              className={`${inputCls} mt-3`}
-              placeholder="Certificate title"
-            />
+            <input value={c.title} onChange={(e) => updateTitle(c.id, e.target.value)} className={`${inputCls} mt-3`} placeholder="Certificate title" />
             <div className="mt-3 flex items-center justify-between">
-              <a
-                href={c.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40 hover:text-[#f97316]"
-              >
-                View file
-              </a>
-              <button
-                onClick={() => removeCert(c)}
-                title="Delete certificate"
-                aria-label="Delete certificate"
-                className="rounded-full border border-[#ef4444]/40 p-1.5 text-[#ef4444] hover:bg-red-500/10"
-              >
+              <a href={c.url} target="_blank" rel="noopener noreferrer" className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40 hover:text-[#f97316]">View file</a>
+              <button onClick={() => removeCert(c)} title="Delete certificate" aria-label="Delete certificate" className="rounded-full border border-[#ef4444]/40 p-1.5 text-[#ef4444] hover:bg-red-500/10">
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -937,14 +896,7 @@ function CertificatesAdmin({ data, update, showToast }: { data: ReturnType<typeo
           {uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5" />}
           <span className="text-sm font-semibold">{uploading ? "Uploading..." : "Upload certificate(s)"}</span>
           <span className="text-xs text-[#f97316]/70">Images or PDF</span>
-          <input
-            type="file"
-            accept="image/*,application/pdf"
-            multiple
-            disabled={uploading}
-            className="hidden"
-            onChange={(e) => { if (e.target.files?.length) handleUpload(e.target.files); e.target.value = ""; }}
-          />
+          <input type="file" accept="image/*,application/pdf" multiple disabled={uploading} className="hidden" onChange={(e) => { if (e.target.files?.length) handleUpload(e.target.files); e.target.value = ""; }} />
         </label>
       </div>
     </div>
