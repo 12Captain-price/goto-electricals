@@ -923,7 +923,7 @@ function Footer({ contact }: { contact: ReturnType<typeof useSiteData>["data"]["
             <div className="flex items-center gap-2">
               <Zap className="h-5 w-5 text-[#f97316]" />
               <span className="font-display text-lg font-bold tracking-tight">
-                <span className="text-[#f97316]">GO TO</span><span className="text-white"> ELECTRICALS</span>
+                <span className="text-[#f97316]">GOW TO</span><span className="text-white"> ELECTRICALS</span>
               </span>
             </div>
             <p className="mt-2 font-mono text-sm text-white/40">Licensed · Insured · ECB Registered</p>
