@@ -77,9 +77,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Gow To Electricals — Bulawayo's Trusted Electrical Contractors" },
+      { title: "Gow To Electricals" },
       { name: "description", content: "Licensed, insured & ECB registered electrical contractors in Bulawayo. Residential, commercial & industrial. 24/7 emergency callouts." },
-      { property: "og:title", content: "Gow To Electricals — Bulawayo's Trusted Electrical Contractors" },
+      { property: "og:title", content: "Gow To Electricals" },
       { property: "og:description", content: "Licensed, insured & ECB registered electrical contractors in Bulawayo. Residential, commercial & industrial. 24/7 emergency callouts." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
