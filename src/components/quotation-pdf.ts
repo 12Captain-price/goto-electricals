@@ -8,6 +8,10 @@ import jsPDF from "jspdf";
 import type { Quotation } from "@/lib/quotes-store";
 import type { ContactInfo } from "@/lib/site-store";
 
+// Vite resolves this import at build time and inlines the image as a data URL,
+// so it works correctly both locally and on Cloudflare Workers.
+import logoUrl from "@/assets/goto-logo.jpeg";
+
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 function fmt(n: number) {
@@ -23,15 +27,11 @@ function todayStr(dateStr: string) {
 }
 
 // ── DOM template builder ──────────────────────────────────────────────────────
-// We create an off-screen <div>, style it like a printed page (A4 proportions
-// at 2× scale = 1587 × 2245 px), capture it with html-to-image, then drop the
-// PNG into jsPDF.  We do NOT mount it into <body> visibly — we attach it to a
-// hidden container and remove it when done.
 
 function buildTemplate(
   q: Quotation,
   contact: ContactInfo,
-  logoDataUrl: string | null
+  logoDataUrl: string
 ): HTMLDivElement {
   const ORANGE = "#f97316";
   const BG = "#ffffff";
@@ -42,7 +42,6 @@ function buildTemplate(
   const CALLOUT_BORDER = "#fed7aa";
 
   const W = 1587; // px at 2× A4 width (794pt × 2)
-  // We let height be auto so long content doesn't clip.
 
   const rows = q.line_items
     .map(
@@ -64,10 +63,6 @@ function buildTemplate(
        </tr>`
     : "";
 
-  const logoHtml = logoDataUrl
-    ? `<img src="${logoDataUrl}" style="max-height:72px;max-width:160px;object-fit:contain;display:block;margin-left:auto;" alt="Logo" />`
-    : `<div style="width:120px;height:60px;background:#f3f4f6;border-radius:8px;display:flex;align-items:center;justify-content:center;margin-left:auto;font-size:11px;color:${MUTED};">LOGO</div>`;
-
   const vatLine = contact.vat ? `<div style="font-size:13px;color:${MUTED};">VAT No: ${contact.vat}</div>` : "";
   const tinLine = contact.tin ? `<div style="font-size:13px;color:${MUTED};">TIN No: ${contact.tin}</div>` : "";
 
@@ -83,13 +78,12 @@ function buildTemplate(
   position:relative;
 ">
 
-  <!-- ── HEADER ── -->
+  <!-- HEADER -->
   <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:56px;">
 
     <!-- LEFT: company info -->
     <div>
       <div style="font-size:26px;font-weight:800;color:${TEXT};letter-spacing:-0.5px;margin-bottom:4px;">
-        ${contact.phone ? contact.phone.replace(/.*/, "") : ""}
         <span style="color:${ORANGE};">GO TO</span> ELECTRICALS
       </div>
       <div style="margin-top:8px;display:flex;flex-direction:column;gap:4px;">
@@ -103,7 +97,11 @@ function buildTemplate(
 
     <!-- RIGHT: logo + quote number + date -->
     <div style="text-align:right;">
-      ${logoHtml}
+      <img
+        src="${logoDataUrl}"
+        style="max-height:80px;max-width:180px;object-fit:contain;display:block;margin-left:auto;"
+        alt="Go To Electricals Logo"
+      />
       <div style="margin-top:14px;">
         <div style="font-size:28px;font-weight:800;color:${TEXT};letter-spacing:-0.5px;">QUOTATION</div>
         <div style="margin-top:6px;display:flex;flex-direction:column;gap:3px;align-items:flex-end;">
@@ -114,10 +112,10 @@ function buildTemplate(
     </div>
   </div>
 
-  <!-- ── DIVIDER ── -->
+  <!-- DIVIDER -->
   <div style="height:2px;background:linear-gradient(90deg,${ORANGE},transparent);margin-bottom:40px;border-radius:2px;"></div>
 
-  <!-- ── CLIENT BLOCK ── -->
+  <!-- CLIENT BLOCK -->
   <div style="
     background:#f9fafb;
     border:1px solid ${BORDER};
@@ -150,7 +148,7 @@ function buildTemplate(
     }
   </div>
 
-  <!-- ── LINE ITEMS TABLE ── -->
+  <!-- LINE ITEMS TABLE -->
   <table style="width:100%;border-collapse:collapse;margin-bottom:40px;">
     <thead>
       <tr style="background:${TEXT};">
@@ -167,7 +165,7 @@ function buildTemplate(
     </tbody>
   </table>
 
-  <!-- ── TOTALS ── -->
+  <!-- TOTALS -->
   <div style="display:flex;justify-content:flex-end;margin-bottom:56px;">
     <div style="width:320px;">
       <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid ${BORDER};font-size:14px;">
@@ -189,7 +187,7 @@ function buildTemplate(
     </div>
   </div>
 
-  <!-- ── ISSUED BY ── -->
+  <!-- ISSUED BY -->
   <div style="
     border-top:1px solid ${BORDER};
     padding-top:32px;
@@ -208,7 +206,7 @@ function buildTemplate(
     </div>
   </div>
 
-  <!-- ── FOOTER ── -->
+  <!-- FOOTER -->
   <div style="
     margin-top:48px;
     padding-top:20px;
@@ -234,69 +232,40 @@ function buildTemplate(
   return wrapper;
 }
 
-// ── loadLogoAsDataUrl ──────────────────────────────────────────────────────────
-// Fetches the logo from the public assets path and converts it to a data URL
-// so it embeds correctly when html-to-image rasterises the template.
-
-async function loadLogoAsDataUrl(): Promise<string | null> {
-  try {
-    const res = await fetch("/src/assets/goto-logo.jpeg");
-    if (!res.ok) throw new Error("not found");
-    const blob = await res.blob();
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(blob);
-    });
-  } catch {
-    // Logo fetch failed — we'll render without it rather than crash
-    return null;
-  }
-}
-
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export async function downloadQuotationPdf(
   q: Quotation,
   contact: ContactInfo
 ): Promise<void> {
-  // 1. Load logo
-  const logoDataUrl = await loadLogoAsDataUrl();
-
-  // 2. Build off-screen template
-  const container = buildTemplate(q, contact, logoDataUrl);
+  // logoUrl is resolved by Vite at build time — always a valid data URL or hashed path
+  const container = buildTemplate(q, contact, logoUrl);
   document.body.appendChild(container);
   const el = container.firstElementChild as HTMLElement;
 
   try {
-    // 3. Capture as PNG at 2× resolution (pixelRatio:2 keeps text crisp on PDF)
     const dataUrl = await toPng(el, {
       pixelRatio: 2,
       backgroundColor: "#ffffff",
-      // Ensure external fonts/images inside the template don't block capture
       skipFonts: false,
     });
 
-    // 4. Measure actual rendered size (el may be taller than 2245px for long quotes)
     const imgEl = new Image();
     await new Promise<void>((res) => { imgEl.onload = () => res(); imgEl.src = dataUrl; });
     const imgW = imgEl.naturalWidth;
     const imgH = imgEl.naturalHeight;
 
-    // 5. Create PDF — A4 width, proportional height
     const A4_W_MM = 210;
     const A4_H_MM = (imgH / imgW) * A4_W_MM;
     const pdf = new jsPDF({
-      orientation: A4_H_MM > A4_W_MM ? "portrait" : "landscape",
+      orientation: "portrait",
       unit: "mm",
-      format: [A4_W_MM, Math.max(A4_H_MM, 297)], // at least A4 height
+      format: [A4_W_MM, Math.max(A4_H_MM, 297)],
     });
 
     pdf.addImage(dataUrl, "PNG", 0, 0, A4_W_MM, A4_H_MM);
     pdf.save(`${q.quote_number}-Go-To-Electricals.pdf`);
   } finally {
-    // 6. Clean up the off-screen node regardless of success/failure
     document.body.removeChild(container);
   }
 }
