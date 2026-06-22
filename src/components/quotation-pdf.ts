@@ -193,20 +193,15 @@ export async function downloadQuotationPdf(
       skipFonts: false,
     });
 
-    const imgEl = new Image();
-    await new Promise<void>((res) => { imgEl.onload = () => res(); imgEl.src = dataUrl; });
-    const imgW = imgEl.naturalWidth;
-    const imgH = imgEl.naturalHeight;
-
-    const A4_W_MM = 210;
-    const A4_H_MM = (imgH / imgW) * A4_W_MM;
+    // Lock to true A4 (210x297mm) so it prints full-size on A4 bond paper.
     const pdf = new jsPDF({
       orientation: "portrait",
       unit: "mm",
-      format: [A4_W_MM, Math.max(A4_H_MM, 297)],
+      format: "a4",
     });
 
-    pdf.addImage(dataUrl, "JPEG", 0, 0, A4_W_MM, A4_H_MM);
+    // Stretch image to fill entire A4 page — no margins, no tiny box
+    pdf.addImage(dataUrl, "JPEG", 0, 0, 210, 297);
     pdf.save(`${q.quote_number}-Go-To-Electricals.pdf`);
   } finally {
     document.body.removeChild(container);
