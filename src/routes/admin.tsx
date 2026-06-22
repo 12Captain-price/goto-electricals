@@ -135,7 +135,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
         {tab === "overview" && <Overview data={data} quotes={quotes} />}
         {tab === "quotes" && <QuotesAdmin showToast={showToast} />}
         {tab === "customers" && <CustomersAdmin showToast={showToast} />}
-        {tab === "quotations" && <QuotationsAdmin defaultCalloutFee={15} />}
+        {tab === "quotations" && <QuotationsAdmin defaultCalloutFee={15} contact={data.contact} />}
         {tab === "hero" && <HeroSlideshowAdmin data={data} update={update} showToast={showToast} />}
         {tab === "services" && <ServicesAdmin data={data} update={update} showToast={showToast} />}
         {tab === "portfolio" && <PortfolioAdmin data={data} update={update} showToast={showToast} />}

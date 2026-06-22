@@ -1,13 +1,15 @@
 import { useState } from "react";
 import {
   Plus, Trash2, Search, X, FileText, User, Phone,
-  Loader2, ArrowLeft, AlertCircle, Save,
+  Loader2, ArrowLeft, AlertCircle, Save, Download,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   useQuotations, useCustomers, computeQuotationTotals,
   type Quotation, type QuotationLineItem, type Customer,
 } from "@/lib/quotes-store";
+import { downloadQuotationPdf } from "@/components/quotation-pdf";
+import type { ContactInfo } from "@/lib/site-store";
 
 const inputCls = "w-full rounded-xl border border-white/10 bg-[#0d1117] px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-[#f97316] focus:outline-none";
 
@@ -314,16 +316,32 @@ function QuotationBuilder({ companyDefaultFee, onClose, onSaved }: {
   );
 }
 
-// ── List view ──
+// ── Quotation Card ──
 
-function QuotationCard({ q }: { q: Quotation }) {
+function QuotationCard({ q, contact }: { q: Quotation; contact: ContactInfo }) {
+  const [downloading, setDownloading] = useState(false);
+  const [dlErr, setDlErr] = useState<string | null>(null);
   const date = new Date(q.created_at);
+
+  const handleDownload = async () => {
+    setDlErr(null);
+    setDownloading(true);
+    try {
+      await downloadQuotationPdf(q, contact);
+    } catch (e) {
+      console.error("[QuotationCard] PDF generation failed:", e);
+      setDlErr("PDF generation failed — please try again.");
+    }
+    setDownloading(false);
+  };
+
   return (
     <div className="rounded-2xl border border-white/10 bg-[#161b22] p-5">
       <div className="flex items-center justify-between">
         <span className="font-mono text-sm font-bold text-[#f97316]">{q.quote_number}</span>
         <span className="font-mono text-[10px] text-white/30">{date.toLocaleDateString()}</span>
       </div>
+
       <div className="mt-3 flex items-center gap-2">
         <User className="h-3.5 w-3.5 text-white/40" />
         <span className="text-sm font-semibold text-white">{q.customer_snapshot.name}</span>
@@ -333,16 +351,48 @@ function QuotationCard({ q }: { q: Quotation }) {
           <Phone className="h-3.5 w-3.5 text-white/30" /> {q.customer_snapshot.phone}
         </div>
       )}
+
       <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-3">
-        <span className="font-mono text-[10px] uppercase tracking-wider text-white/40">{q.line_items.length} item{q.line_items.length === 1 ? "" : "s"}</span>
+        <span className="font-mono text-[10px] uppercase tracking-wider text-white/40">
+          {q.line_items.length} item{q.line_items.length === 1 ? "" : "s"}
+        </span>
         <span className="font-display text-lg font-bold text-white">${q.total.toFixed(2)}</span>
       </div>
-      <div className="mt-2 font-mono text-[10px] uppercase tracking-wider text-white/30">Issued by {q.issued_by}</div>
+
+      <div className="mt-1.5 font-mono text-[10px] uppercase tracking-wider text-white/30">
+        Issued by {q.issued_by}
+      </div>
+
+      {dlErr && (
+        <div className="mt-3 flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400">
+          <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" /> {dlErr}
+        </div>
+      )}
+
+      <button
+        onClick={handleDownload}
+        disabled={downloading}
+        className="mt-4 flex w-full items-center justify-center gap-2 rounded-full border border-[#f97316]/40 py-2.5 text-sm font-semibold text-[#f97316] hover:bg-[#f97316]/10 disabled:opacity-50"
+      >
+        {downloading ? (
+          <><Loader2 className="h-4 w-4 animate-spin" /> Generating PDF...</>
+        ) : (
+          <><Download className="h-4 w-4" /> Download PDF</>
+        )}
+      </button>
     </div>
   );
 }
 
-export function QuotationsAdmin({ defaultCalloutFee }: { defaultCalloutFee: number }) {
+// ── List + builder container ──
+
+export function QuotationsAdmin({
+  defaultCalloutFee,
+  contact,
+}: {
+  defaultCalloutFee: number;
+  contact: ContactInfo;
+}) {
   const { quotations, ready } = useQuotations();
   const [view, setView] = useState<"list" | "builder">("list");
 
@@ -382,7 +432,9 @@ export function QuotationsAdmin({ defaultCalloutFee }: { defaultCalloutFee: numb
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {quotations.map((q) => <QuotationCard key={q.id} q={q} />)}
+          {quotations.map((q) => (
+            <QuotationCard key={q.id} q={q} contact={contact} />
+          ))}
         </div>
       )}
     </div>
