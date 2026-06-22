@@ -37,6 +37,8 @@ export type ContactInfo = {
   email: string;
   address: string;
   hours: string;
+  vat: string;
+  tin: string;
 };
 
 export type Stats = {
@@ -99,6 +101,8 @@ export const DEFAULT_DATA: SiteData = {
     email: "info@gotoelectricals.co.zw",
     address: "Bulawayo, Zimbabwe",
     hours: "Mon–Fri 7am–6pm · 24/7 Emergency Callouts",
+    vat: "",
+    tin: "",
   },
   stats: { years: "6", projects: "150", clients: "120" },
   heroSlides: [],
@@ -123,7 +127,7 @@ export function useSiteData() {
       if (error || !row) {
         setData(DEFAULT_DATA);
       } else {
-        setData({ ...DEFAULT_DATA, ...row.value });
+        setData({ ...DEFAULT_DATA, ...row.value, contact: { ...DEFAULT_DATA.contact, ...(row.value as any).contact } });
       }
       setReady(true);
     };
@@ -131,13 +135,14 @@ export function useSiteData() {
     fetchData();
 
     const channel = supabase
-      .channel("site_data_changes")
+      .channel(`site_data_changes_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "site_data" },
         (payload) => {
           if (payload.new && "value" in payload.new) {
-            setData({ ...DEFAULT_DATA, ...(payload.new as any).value });
+            const v = (payload.new as any).value;
+            setData({ ...DEFAULT_DATA, ...v, contact: { ...DEFAULT_DATA.contact, ...v.contact } });
           }
         }
       )

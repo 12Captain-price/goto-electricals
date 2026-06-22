@@ -4,10 +4,11 @@ import {
   ShieldCheck, Eye, EyeOff, AlertCircle, LayoutDashboard, ImagePlus,
   Star, Phone, BarChart2, Settings, LogOut, Trash2, Plus, CheckCircle, Save,
   Image, ChevronUp, ChevronDown, Zap, X, FileText, Upload, Loader2, Award,
-  Inbox, MapPin, MessageCircle, Mail, User, Clock, Users, Search, StickyNote,
+  Inbox, MapPin, MessageCircle, Mail, User, Clock, Users, Search, StickyNote, FileSignature,
 } from "lucide-react";
 import { useSiteData, AUTH_KEY, type Project, type Testimonial, type HeroSlide, type Service, type ServiceOperation, type Certificate } from "@/lib/site-store";
 import { useQuotes, useCustomers, type Quote, type QuoteStatus, type Customer } from "@/lib/quotes-store";
+import { QuotationsAdmin } from "@/components/quotation-builder";
 import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/admin")({
@@ -75,7 +76,7 @@ function Login({ onAuth }: { onAuth: () => void }) {
   );
 }
 
-type Tab = "overview" | "hero" | "services" | "portfolio" | "certificates" | "testimonials" | "contact" | "stats" | "settings" | "quotes" | "customers";
+type Tab = "overview" | "hero" | "services" | "portfolio" | "certificates" | "testimonials" | "contact" | "stats" | "settings" | "quotes" | "customers" | "quotations";
 
 function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [tab, setTab] = useState<Tab>("overview");
@@ -91,6 +92,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
     { id: "overview", icon: LayoutDashboard, label: "Overview" },
     { id: "quotes", icon: Inbox, label: "Quotes", badge: newQuotesCount },
     { id: "customers", icon: Users, label: "Customers" },
+    { id: "quotations", icon: FileSignature, label: "Quotations" },
     { id: "hero", icon: Image, label: "Hero Slideshow" },
     { id: "services", icon: Zap, label: "Services" },
     { id: "portfolio", icon: ImagePlus, label: "Portfolio" },
@@ -133,6 +135,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
         {tab === "overview" && <Overview data={data} quotes={quotes} />}
         {tab === "quotes" && <QuotesAdmin showToast={showToast} />}
         {tab === "customers" && <CustomersAdmin showToast={showToast} />}
+        {tab === "quotations" && <QuotationsAdmin services={data.services} defaultCalloutFee={15} />}
         {tab === "hero" && <HeroSlideshowAdmin data={data} update={update} showToast={showToast} />}
         {tab === "services" && <ServicesAdmin data={data} update={update} showToast={showToast} />}
         {tab === "portfolio" && <PortfolioAdmin data={data} update={update} showToast={showToast} />}
@@ -983,6 +986,8 @@ function ContactAdmin({ data, update, showToast }: { data: ReturnType<typeof use
     { key: "email", label: "Email" },
     { key: "address", label: "Address" },
     { key: "hours", label: "Business Hours" },
+    { key: "vat", label: "VAT Number" },
+    { key: "tin", label: "TIN Number" },
   ];
   return (
     <div>
