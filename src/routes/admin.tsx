@@ -113,7 +113,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
     <div className="min-h-screen bg-[#0d1117] text-[#f0f6fc]">
       <aside className="fixed top-0 left-0 flex h-screen w-64 flex-col border-r border-white/10 bg-[#161b22] p-5 overflow-y-auto">
         <div className="mb-8 font-display text-lg font-bold">
-          <span className="text-[#f97316]">GO TO</span> <span className="text-white">ADMIN</span>
+          <span className="text-[#f97316]">GOW TO</span> <span className="text-white">ADMIN</span>
         </div>
         <nav className="flex-1 space-y-1">
           {nav.map((n) => (
