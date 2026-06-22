@@ -47,11 +47,11 @@ function Navbar() {
         <a href="#home" className="group flex items-center gap-3">
           <img
             src={logoUrl}
-            alt="Go To Electricals"
+            alt="Gow To Electricals"
             className="h-14 w-14 rounded-lg object-contain shadow-[0_0_14px_rgba(249,115,22,0.35)] transition-shadow duration-300 group-hover:shadow-[0_0_28px_rgba(249,115,22,0.7)]"
           />
           <span className="font-display text-lg font-bold tracking-tight">
-            <span className="text-[#f97316]">GO TO</span>
+            <span className="text-[#f97316]">GOW TO</span>
             <span className="text-[#f0f6fc]"> ELECTRICALS</span>
           </span>
         </a>
@@ -548,7 +548,7 @@ function Contact({ contact }: { contact: ReturnType<typeof useSiteData>["data"][
   const handleSend = async () => {
     await saveQuote("whatsapp");
 
-    const body = `*New Quote Request — Go To Electricals*\n\n*Service:* ${service}\n*Name:* ${name}\n*Phone:* ${phone}\n*Location:* ${location || "Not provided"}\n*Message:* ${message || "—"}\n\nNote: A $15 fixed call-out fee applies before work begins — covers site visit, assessment & fault diagnosis.`;
+    const body = `*New Quote Request — Gow To Electricals*\n\n*Service:* ${service}\n*Name:* ${name}\n*Phone:* ${phone}\n*Location:* ${location || "Not provided"}\n*Message:* ${message || "—"}\n\nNote: A $15 fixed call-out fee applies before work begins — covers site visit, assessment & fault diagnosis.`;
     window.open(`https://wa.me/${contact.whatsapp}?text=${encodeURIComponent(body)}`, "_blank");
     setSent(true);
     setTimeout(() => {
@@ -961,7 +961,7 @@ function Footer({ contact }: { contact: ReturnType<typeof useSiteData>["data"]["
           </div>
         </div>
         <div className="mt-8 flex flex-col items-center justify-between gap-2 font-mono text-[10px] uppercase tracking-wider text-white/30 md:flex-row">
-          <span>ECB Reg: Pending · © 2025 Go To Electricals</span>
+          <span>ECB Reg: Pending · © 2026 Gow To Electricals</span>
           <span>Bulawayo · Zimbabwe · All Rights Reserved</span>
         </div>
       </div>

@@ -52,7 +52,7 @@ function Login({ onAuth }: { onAuth: () => void }) {
       <form onSubmit={submit} className="mx-auto mt-32 max-w-sm rounded-2xl border border-white/10 bg-[#161b22] p-8">
         <ShieldCheck className="mx-auto mb-4 h-10 w-10 text-[#f97316]" />
         <h1 className="text-center font-display text-xl font-bold text-white">Admin Access</h1>
-        <p className="mb-8 text-center font-mono text-sm text-white/40">Go To Electricals — Manager Portal</p>
+        <p className="mb-8 text-center font-mono text-sm text-white/40">Gow To Electricals — Manager Portal</p>
         <div className="relative">
           <input
             type={show ? "text" : "password"}
