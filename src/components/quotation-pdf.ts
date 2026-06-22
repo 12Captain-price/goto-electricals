@@ -1,5 +1,5 @@
 // quotation-pdf.ts
-import { toPng } from "html-to-image";
+import { toJpeg } from "html-to-image";
 import jsPDF from "jspdf";
 import type { Quotation } from "@/lib/quotes-store";
 import type { ContactInfo } from "@/lib/site-store";
@@ -47,7 +47,7 @@ function buildTemplate(
   const BORDER = "#e5e7eb";
   const CALLOUT_BG = "#fff7ed";
   const CALLOUT_BORDER = "#fed7aa";
-  const W = 1587;
+  const W = 794; // A4 width at 1× (halved from 1587) — renders fast and small
 
   const rows = q.line_items
     .map(
@@ -186,9 +186,10 @@ export async function downloadQuotationPdf(
   const el = container.firstElementChild as HTMLElement;
 
   try {
-    const dataUrl = await toPng(el, {
-      pixelRatio: 2,
+    const dataUrl = await toJpeg(el, {
+      pixelRatio: 1.5,        // 1× looks crisp enough; 2× was the size culprit
       backgroundColor: "#ffffff",
+      quality: 0.82,          // JPEG compression — invisible difference, huge size saving
       skipFonts: false,
     });
 
@@ -205,7 +206,7 @@ export async function downloadQuotationPdf(
       format: [A4_W_MM, Math.max(A4_H_MM, 297)],
     });
 
-    pdf.addImage(dataUrl, "PNG", 0, 0, A4_W_MM, A4_H_MM);
+    pdf.addImage(dataUrl, "JPEG", 0, 0, A4_W_MM, A4_H_MM);
     pdf.save(`${q.quote_number}-Go-To-Electricals.pdf`);
   } finally {
     document.body.removeChild(container);
