@@ -282,7 +282,7 @@ function About({ stats }: { stats: { years: string; projects: string; clients: s
           </h2>
         </div>
         <div className="space-y-5 text-base text-white/65 md:col-span-3">
-          <p>Go To Electricals is a Bulawayo-based electrical contracting company founded and led by <span className="text-white">Collen N Goto</span>. With 6 years of hands-on trade experience across residential, commercial and industrial projects, every job is backed by proper licensing and a commitment to safety.</p>
+          <p>Gow To Electricals is a Bulawayo-based electrical contracting company founded and led by <span className="text-white">Collen N Goto</span>. With 6 years of hands-on trade experience across residential, commercial and industrial projects, every job is backed by proper licensing and a commitment to safety.</p>
           <p>We are ECB registered and actively building our compliance portfolio. Whether it's a fault at 7pm or a full commercial fit-out, we show up, do it right, and stand behind our work.</p>
         </div>
       </div>
