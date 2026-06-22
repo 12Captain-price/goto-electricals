@@ -1,18 +1,8 @@
 // quotation-pdf.ts
-// Generates a branded PDF for a formal quotation.
-// Uses html-to-image to rasterise an off-screen DOM node, then jsPDF to embed
-// the image — same approach already used in project-export.ts.
-
 import { toPng } from "html-to-image";
 import jsPDF from "jspdf";
 import type { Quotation } from "@/lib/quotes-store";
 import type { ContactInfo } from "@/lib/site-store";
-
-// Vite resolves this import at build time and inlines the image as a data URL,
-// so it works correctly both locally and on Cloudflare Workers.
-import logoUrl from "@/assets/goto-logo.jpeg";
-
-// ── helpers ──────────────────────────────────────────────────────────────────
 
 function fmt(n: number) {
   return `$${n.toFixed(2)}`;
@@ -26,7 +16,24 @@ function todayStr(dateStr: string) {
   });
 }
 
-// ── DOM template builder ──────────────────────────────────────────────────────
+// Loads the logo from /public/goto-logo.jpeg as a base64 data URL.
+// Files in public/ are always served at their exact path with no hashing.
+async function loadLogo(): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0);
+      resolve(canvas.toDataURL("image/jpeg"));
+    };
+    img.onerror = () => resolve(""); // no logo — render without it
+    img.src = `/goto-logo.jpeg?t=${Date.now()}`; // cache-bust
+  });
+}
 
 function buildTemplate(
   q: Quotation,
@@ -40,8 +47,7 @@ function buildTemplate(
   const BORDER = "#e5e7eb";
   const CALLOUT_BG = "#fff7ed";
   const CALLOUT_BORDER = "#fed7aa";
-
-  const W = 1587; // px at 2× A4 width (794pt × 2)
+  const W = 1587;
 
   const rows = q.line_items
     .map(
@@ -63,45 +69,30 @@ function buildTemplate(
        </tr>`
     : "";
 
+  const logoHtml = logoDataUrl
+    ? `<img src="${logoDataUrl}" style="max-height:80px;max-width:180px;object-fit:contain;display:block;margin-left:auto;" alt="Logo" />`
+    : `<div style="width:120px;height:60px;"></div>`;
+
   const vatLine = contact.vat ? `<div style="font-size:13px;color:${MUTED};">VAT No: ${contact.vat}</div>` : "";
   const tinLine = contact.tin ? `<div style="font-size:13px;color:${MUTED};">TIN No: ${contact.tin}</div>` : "";
 
   const html = `
-<div style="
-  width:${W}px;
-  min-height:2245px;
-  background:${BG};
-  color:${TEXT};
-  font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;
-  padding:80px 90px;
-  box-sizing:border-box;
-  position:relative;
-">
+<div style="width:${W}px;min-height:2245px;background:${BG};color:${TEXT};font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;padding:80px 90px;box-sizing:border-box;">
 
-  <!-- HEADER -->
   <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:56px;">
-
-    <!-- LEFT: company info -->
     <div>
-      <div style="font-size:26px;font-weight:800;color:${TEXT};letter-spacing:-0.5px;margin-bottom:4px;">
+      <div style="font-size:26px;font-weight:800;letter-spacing:-0.5px;margin-bottom:4px;">
         <span style="color:${ORANGE};">GO TO</span> ELECTRICALS
       </div>
       <div style="margin-top:8px;display:flex;flex-direction:column;gap:4px;">
         ${contact.address ? `<div style="font-size:13px;color:${MUTED};">${contact.address}</div>` : ""}
         ${contact.phone ? `<div style="font-size:13px;color:${MUTED};">${contact.phone}</div>` : ""}
         ${contact.email ? `<div style="font-size:13px;color:${MUTED};">${contact.email}</div>` : ""}
-        ${vatLine}
-        ${tinLine}
+        ${vatLine}${tinLine}
       </div>
     </div>
-
-    <!-- RIGHT: logo + quote number + date -->
     <div style="text-align:right;">
-      <img
-        src="${logoDataUrl}"
-        style="max-height:80px;max-width:180px;object-fit:contain;display:block;margin-left:auto;"
-        alt="Go To Electricals Logo"
-      />
+      ${logoHtml}
       <div style="margin-top:14px;">
         <div style="font-size:28px;font-weight:800;color:${TEXT};letter-spacing:-0.5px;">QUOTATION</div>
         <div style="margin-top:6px;display:flex;flex-direction:column;gap:3px;align-items:flex-end;">
@@ -112,17 +103,9 @@ function buildTemplate(
     </div>
   </div>
 
-  <!-- DIVIDER -->
   <div style="height:2px;background:linear-gradient(90deg,${ORANGE},transparent);margin-bottom:40px;border-radius:2px;"></div>
 
-  <!-- CLIENT BLOCK -->
-  <div style="
-    background:#f9fafb;
-    border:1px solid ${BORDER};
-    border-radius:12px;
-    padding:28px 32px;
-    margin-bottom:40px;
-  ">
+  <div style="background:#f9fafb;border:1px solid ${BORDER};border-radius:12px;padding:28px 32px;margin-bottom:40px;">
     <div style="font-size:11px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:${MUTED};margin-bottom:14px;">Bill To</div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;">
       <div>
@@ -138,17 +121,9 @@ function buildTemplate(
         <div style="font-size:14px;color:${TEXT};">${q.customer_snapshot.address || "—"}</div>
       </div>
     </div>
-    ${
-      q.remark
-        ? `<div style="margin-top:16px;padding-top:16px;border-top:1px solid ${BORDER};">
-            <span style="font-size:11px;color:${MUTED};text-transform:uppercase;letter-spacing:0.1em;">Remark:</span>
-            <span style="font-size:14px;color:${TEXT};margin-left:8px;">${q.remark}</span>
-           </div>`
-        : ""
-    }
+    ${q.remark ? `<div style="margin-top:16px;padding-top:16px;border-top:1px solid ${BORDER};"><span style="font-size:11px;color:${MUTED};text-transform:uppercase;letter-spacing:0.1em;">Remark:</span><span style="font-size:14px;color:${TEXT};margin-left:8px;">${q.remark}</span></div>` : ""}
   </div>
 
-  <!-- LINE ITEMS TABLE -->
   <table style="width:100%;border-collapse:collapse;margin-bottom:40px;">
     <thead>
       <tr style="background:${TEXT};">
@@ -159,27 +134,16 @@ function buildTemplate(
         <th style="padding:12px 14px;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#fff;text-align:right;width:130px;">Total</th>
       </tr>
     </thead>
-    <tbody>
-      ${rows}
-      ${calloutRow}
-    </tbody>
+    <tbody>${rows}${calloutRow}</tbody>
   </table>
 
-  <!-- TOTALS -->
   <div style="display:flex;justify-content:flex-end;margin-bottom:56px;">
     <div style="width:320px;">
       <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid ${BORDER};font-size:14px;">
         <span style="color:${MUTED};">Subtotal</span>
         <span style="color:${TEXT};font-weight:600;">${fmt(q.subtotal)}</span>
       </div>
-      ${
-        q.callout_fee_enabled
-          ? `<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid ${CALLOUT_BORDER};background:${CALLOUT_BG};padding-left:10px;padding-right:10px;font-size:14px;">
-              <span style="color:${ORANGE};font-weight:700;">Call-Out Fee</span>
-              <span style="color:${ORANGE};font-weight:700;">${fmt(q.callout_fee_amount)}</span>
-             </div>`
-          : ""
-      }
+      ${q.callout_fee_enabled ? `<div style="display:flex;justify-content:space-between;padding:10px;border-bottom:1px solid ${CALLOUT_BORDER};background:${CALLOUT_BG};font-size:14px;"><span style="color:${ORANGE};font-weight:700;">Call-Out Fee</span><span style="color:${ORANGE};font-weight:700;">${fmt(q.callout_fee_amount)}</span></div>` : ""}
       <div style="display:flex;justify-content:space-between;padding:14px 0;border-top:2px solid ${TEXT};">
         <span style="font-size:18px;font-weight:800;color:${TEXT};">TOTAL</span>
         <span style="font-size:22px;font-weight:800;color:${ORANGE};">${fmt(q.total)}</span>
@@ -187,14 +151,7 @@ function buildTemplate(
     </div>
   </div>
 
-  <!-- ISSUED BY -->
-  <div style="
-    border-top:1px solid ${BORDER};
-    padding-top:32px;
-    display:flex;
-    justify-content:space-between;
-    align-items:flex-end;
-  ">
+  <div style="border-top:1px solid ${BORDER};padding-top:32px;display:flex;justify-content:space-between;align-items:flex-end;">
     <div>
       <div style="font-size:11px;color:${MUTED};text-transform:uppercase;letter-spacing:0.12em;margin-bottom:6px;">Issued By</div>
       <div style="font-size:16px;font-weight:700;color:${TEXT};">${q.issued_by}</div>
@@ -206,40 +163,25 @@ function buildTemplate(
     </div>
   </div>
 
-  <!-- FOOTER -->
-  <div style="
-    margin-top:48px;
-    padding-top:20px;
-    border-top:1px solid ${BORDER};
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-  ">
-    <div style="font-size:11px;color:${MUTED};">
-      ${contact.email || ""} · ${contact.phone || ""}
-    </div>
-    <div style="font-size:11px;color:${MUTED};">
-      ${q.quote_number} · Go To Electricals
-    </div>
+  <div style="margin-top:48px;padding-top:20px;border-top:1px solid ${BORDER};display:flex;justify-content:space-between;align-items:center;">
+    <div style="font-size:11px;color:${MUTED};">${contact.email || ""} · ${contact.phone || ""}</div>
+    <div style="font-size:11px;color:${MUTED};">${q.quote_number} · Go To Electricals</div>
   </div>
 
 </div>`;
 
   const wrapper = document.createElement("div");
-  wrapper.style.cssText =
-    "position:fixed;top:-9999px;left:-9999px;z-index:-1;pointer-events:none;";
+  wrapper.style.cssText = "position:fixed;top:-9999px;left:-9999px;z-index:-1;pointer-events:none;";
   wrapper.innerHTML = html;
   return wrapper;
 }
-
-// ── Main export ───────────────────────────────────────────────────────────────
 
 export async function downloadQuotationPdf(
   q: Quotation,
   contact: ContactInfo
 ): Promise<void> {
-  // logoUrl is resolved by Vite at build time — always a valid data URL or hashed path
-  const container = buildTemplate(q, contact, logoUrl);
+  const logoDataUrl = await loadLogo();
+  const container = buildTemplate(q, contact, logoDataUrl);
   document.body.appendChild(container);
   const el = container.firstElementChild as HTMLElement;
 
