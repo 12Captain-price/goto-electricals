@@ -105,6 +105,14 @@ export async function downloadInvoicePdf(
     pdf.text(`Address: ${invoice.customer_snapshot.address}`, margin, y);
     y += 6;
   }
+  if (invoice.customer_snapshot.vat) {
+    pdf.text(`VAT No: ${invoice.customer_snapshot.vat}`, margin, y);
+    y += 6;
+  }
+  if (invoice.customer_snapshot.tin) {
+    pdf.text(`TIN No: ${invoice.customer_snapshot.tin}`, margin, y);
+    y += 6;
+  }
   if (invoice.remark) {
     pdf.text(`Remark: ${invoice.remark}`, margin, y);
     y += 6;

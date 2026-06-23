@@ -24,6 +24,8 @@ export type Customer = {
   phone: string | null;
   address: string | null;
   notes: string | null;
+  vat: string | null;
+  tin: string | null;
   created_at: string;
 };
 
@@ -38,6 +40,8 @@ export type CustomerSnapshot = {
   name: string;
   phone: string;
   address: string;
+  vat?: string;
+  tin?: string;
 };
 
 export type Quotation = {
@@ -262,7 +266,6 @@ export function useInvoices() {
         .select("*")
         .order("created_at", { ascending: false });
       if (!error && data) {
-        // Ensure payments field always exists as an array
         const normalised = (data as any[]).map((inv) => ({
           ...inv,
           payments: Array.isArray(inv.payments) ? inv.payments : [],
@@ -304,12 +307,10 @@ export function useInvoices() {
     return data as Invoice;
   };
 
-  // Add a payment to an invoice — reads current payments, appends, writes back.
   const addPayment = async (
     invoiceId: string,
-    payment: Omit<InvoicePayment, "id" | "created_at">  // no invoice_id field needed
+    payment: Omit<InvoicePayment, "id" | "created_at">
   ) => {
-    // Get current invoice to read existing payments
     const { data: current, error: fetchErr } = await supabase
       .from("invoices")
       .select("payments, total")
@@ -325,7 +326,6 @@ export function useInvoices() {
     };
     const updatedPayments = [...existingPayments, newPayment];
 
-    // Compute new status
     const amountPaid = updatedPayments.reduce((s, p) => s + p.amount, 0);
     const total: number = current.total;
     let payment_status: PaymentStatus = "unpaid";
@@ -341,7 +341,6 @@ export function useInvoices() {
     return newPayment;
   };
 
-  // Remove a payment from an invoice by payment id.
   const removePayment = async (invoiceId: string, paymentId: string) => {
     const { data: current, error: fetchErr } = await supabase
       .from("invoices")
@@ -376,10 +375,6 @@ export function useInvoices() {
 
   return { invoices, ready, addInvoice, addPayment, removePayment, updateInvoice, removeInvoice, getNextInvoiceNumber };
 }
-
-// ── REMOVED: useInvoicePayments and useAllInvoicePayments ──
-// Payments now live inside invoices.payments — no separate hooks needed.
-// invoice-admin.tsx reads payments directly from invoice.payments array.
 
 // ── Helpers ──
 

@@ -102,6 +102,8 @@ export type BuilderSeed = {
   clientName: string;
   clientPhone: string;
   clientAddress: string;
+  clientVat?: string;
+  clientTin?: string;
   items: QuotationLineItem[];
   calloutEnabled: boolean;
   issuedBy: string;
@@ -115,6 +117,8 @@ export type InvoiceSeed = {
   customerName: string;
   customerPhone: string;
   customerAddress: string;
+  customerVat?: string;
+  customerTin?: string;
   lineItems: { description: string; quantity: number; unit_price: number }[];
   calloutEnabled: boolean;
   calloutAmount: number;
@@ -137,6 +141,8 @@ function QuotationBuilder({ companyDefaultFee, onClose, onSaved, seed }: {
   const [clientName, setClientName] = useState(seed?.clientName ?? "");
   const [clientPhone, setClientPhone] = useState(seed?.clientPhone ?? "");
   const [clientAddress, setClientAddress] = useState(seed?.clientAddress ?? "");
+  const [clientVat, setClientVat] = useState(seed?.clientVat ?? "");
+  const [clientTin, setClientTin] = useState(seed?.clientTin ?? "");
   const [items, setItems] = useState<QuotationLineItem[]>(seed?.items ?? []);
   const [calloutEnabled, setCalloutEnabled] = useState(seed?.calloutEnabled ?? true);
   const [issuedBy, setIssuedBy] = useState(seed?.issuedBy ?? "");
@@ -154,6 +160,8 @@ function QuotationBuilder({ companyDefaultFee, onClose, onSaved, seed }: {
     setClientName(c.name);
     setClientPhone(c.phone ?? "");
     setClientAddress(c.address ?? "");
+    setClientVat(c.vat ?? "");
+    setClientTin(c.tin ?? "");
   };
 
   const addLineItem = () => setItems([...items, { description: "", unit_price: 0, qty: 1, total: 0 }]);
@@ -179,7 +187,13 @@ function QuotationBuilder({ companyDefaultFee, onClose, onSaved, seed }: {
     try {
       await addQuotation({
         customer_id: selectedCustomer?.id ?? null,
-        customer_snapshot: { name: clientName.trim(), phone: clientPhone.trim(), address: clientAddress.trim() },
+        customer_snapshot: {
+          name: clientName.trim(),
+          phone: clientPhone.trim(),
+          address: clientAddress.trim(),
+          vat: clientVat.trim() || undefined,
+          tin: clientTin.trim() || undefined,
+        },
         source_quote_id: null,
         line_items: items,
         callout_fee_enabled: calloutEnabled,
@@ -221,12 +235,23 @@ function QuotationBuilder({ companyDefaultFee, onClose, onSaved, seed }: {
           customers={customers}
           selected={selectedCustomer}
           onSelect={handleSelectCustomer}
-          onClear={() => { setSelectedCustomer(null); setClientName(""); setClientPhone(""); setClientAddress(""); }}
+          onClear={() => {
+            setSelectedCustomer(null);
+            setClientName("");
+            setClientPhone("");
+            setClientAddress("");
+            setClientVat("");
+            setClientTin("");
+          }}
         />
         <div className="mt-3 grid gap-3 md:grid-cols-3">
           <input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Client name" className={inputCls} />
           <input value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="Phone" className={inputCls} />
           <input value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} placeholder="Address" className={inputCls} />
+        </div>
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          <input value={clientVat} onChange={(e) => setClientVat(e.target.value)} placeholder="VAT Number" className={inputCls} />
+          <input value={clientTin} onChange={(e) => setClientTin(e.target.value)} placeholder="TIN Number" className={inputCls} />
         </div>
       </div>
 
@@ -385,6 +410,8 @@ function QuotationCard({ q, contact, defaultCalloutFee, onDuplicate, onConvertTo
       clientName: q.customer_snapshot.name,
       clientPhone: q.customer_snapshot.phone ?? "",
       clientAddress: q.customer_snapshot.address ?? "",
+      clientVat: q.customer_snapshot.vat ?? "",
+      clientTin: q.customer_snapshot.tin ?? "",
       items: q.line_items.map((it) => ({ ...it })),
       calloutEnabled: q.callout_fee_enabled,
       issuedBy: q.issued_by,
@@ -398,6 +425,8 @@ function QuotationCard({ q, contact, defaultCalloutFee, onDuplicate, onConvertTo
       customerName: q.customer_snapshot.name,
       customerPhone: q.customer_snapshot.phone ?? "",
       customerAddress: q.customer_snapshot.address ?? "",
+      customerVat: q.customer_snapshot.vat ?? "",
+      customerTin: q.customer_snapshot.tin ?? "",
       lineItems: q.line_items.map((it) => ({
         description: it.description,
         quantity: it.qty,

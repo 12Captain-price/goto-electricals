@@ -323,6 +323,8 @@ function InvoiceBuilder({ seed, onSave, onCancel }: {
   const [customerName, setCustomerName] = useState(seed?.customer_snapshot?.name || "");
   const [customerPhone, setCustomerPhone] = useState(seed?.customer_snapshot?.phone || "");
   const [customerAddress, setCustomerAddress] = useState(seed?.customer_snapshot?.address || "");
+  const [customerVat, setCustomerVat] = useState(seed?.customer_snapshot?.vat || "");
+  const [customerTin, setCustomerTin] = useState(seed?.customer_snapshot?.tin || "");
   const [customerId, setCustomerId] = useState<string | null>(seed?.customer_id ?? null);
   const [issuedBy, setIssuedBy] = useState(seed?.issued_by || "");
   const [remark, setRemark] = useState(seed?.remark || "");
@@ -350,6 +352,7 @@ function InvoiceBuilder({ seed, onSave, onCancel }: {
   function pickCustomer(c: Customer) {
     setCustomerId(c.id); setCustomerName(c.name);
     setCustomerPhone(c.phone || ""); setCustomerAddress(c.address || "");
+    setCustomerVat(c.vat || ""); setCustomerTin(c.tin || "");
     setShowCustomerSearch(false); setCustomerSearch("");
   }
 
@@ -361,7 +364,13 @@ function InvoiceBuilder({ seed, onSave, onCancel }: {
     try {
       await onSave({
         customer_id: customerId,
-        customer_snapshot: { name: customerName.trim(), phone: customerPhone.trim(), address: customerAddress.trim() },
+        customer_snapshot: {
+          name: customerName.trim(),
+          phone: customerPhone.trim(),
+          address: customerAddress.trim(),
+          vat: customerVat.trim() || undefined,
+          tin: customerTin.trim() || undefined,
+        },
         quotation_id: seed?.quotation_id ?? null,
         source_quote_id: seed?.source_quote_id ?? null,
         line_items: toQuotationLineItems(validItems),
@@ -439,6 +448,10 @@ function InvoiceBuilder({ seed, onSave, onCancel }: {
           <input type="text" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Customer Name *" className={inputCls} />
           <input type="text" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="Phone Number" className={inputCls} />
           <input type="text" value={customerAddress} onChange={(e) => setCustomerAddress(e.target.value)} placeholder="Address" className={inputCls} />
+          <div className="grid grid-cols-2 gap-2">
+            <input type="text" value={customerVat} onChange={(e) => setCustomerVat(e.target.value)} placeholder="VAT Number" className={inputCls} />
+            <input type="text" value={customerTin} onChange={(e) => setCustomerTin(e.target.value)} placeholder="TIN Number" className={inputCls} />
+          </div>
         </div>
       </div>
 

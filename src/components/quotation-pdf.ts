@@ -74,6 +74,13 @@ function buildTemplate(
   const vatLine = contact.vat ? `<div style="font-size:16px;color:${MUTED};">VAT No: ${contact.vat}</div>` : "";
   const tinLine = contact.tin ? `<div style="font-size:16px;color:${MUTED};">TIN No: ${contact.tin}</div>` : "";
 
+  const clientVatTinRow = (q.customer_snapshot.vat || q.customer_snapshot.tin)
+    ? `<div style="margin-top:16px;padding-top:16px;border-top:1px solid ${BORDER};display:flex;gap:40px;">
+        ${q.customer_snapshot.vat ? `<div><div style="font-size:14px;color:${MUTED};margin-bottom:4px;">VAT No</div><div style="font-size:18px;color:${TEXT};">${q.customer_snapshot.vat}</div></div>` : ""}
+        ${q.customer_snapshot.tin ? `<div><div style="font-size:14px;color:${MUTED};margin-bottom:4px;">TIN No</div><div style="font-size:18px;color:${TEXT};">${q.customer_snapshot.tin}</div></div>` : ""}
+       </div>`
+    : "";
+
   const html = `
 <div style="width:${W}px;min-height:2245px;background:${BG};color:${TEXT};font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;padding:80px 90px;box-sizing:border-box;">
 
@@ -119,6 +126,7 @@ function buildTemplate(
         <div style="font-size:18px;color:${TEXT};">${q.customer_snapshot.address || "—"}</div>
       </div>
     </div>
+    ${clientVatTinRow}
     ${q.remark ? `<div style="margin-top:16px;padding-top:16px;border-top:1px solid ${BORDER};"><span style="font-size:14px;color:${MUTED};text-transform:uppercase;letter-spacing:0.1em;">Remark:</span><span style="font-size:18px;color:${TEXT};margin-left:8px;">${q.remark}</span></div>` : ""}
   </div>
 
