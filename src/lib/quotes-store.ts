@@ -61,6 +61,17 @@ export type Quotation = {
 export type PaymentStatus = "unpaid" | "partially_paid" | "paid";
 export type PaymentMethod = "cash" | "ecocash" | "zig" | "bank_transfer" | "other";
 
+// Payments are stored as a JSONB array inside the invoice row — no separate table needed.
+export type InvoicePayment = {
+  id: string;         // generated client-side with crypto.randomUUID()
+  amount: number;
+  method: PaymentMethod;
+  note: string | null;
+  paid_at: string;    // ISO date string YYYY-MM-DD
+  created_at: string; // ISO timestamp
+  // note: no invoice_id — payments live inside invoices.payments JSONB array
+};
+
 export type Invoice = {
   id: string;
   invoice_number: string;
@@ -77,16 +88,7 @@ export type Invoice = {
   remark: string | null;
   due_date: string | null;
   payment_status: PaymentStatus;
-  created_at: string;
-};
-
-export type InvoicePayment = {
-  id: string;
-  invoice_id: string;
-  amount: number;
-  method: PaymentMethod;
-  note: string | null;
-  paid_at: string;
+  payments: InvoicePayment[];  // ← stored directly in invoices.payments JSONB column
   created_at: string;
 };
 
@@ -211,7 +213,6 @@ export function useQuotations() {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  // Generates the next quote number, e.g. GTE-001, GTE-002...
   const getNextQuoteNumber = async () => {
     const { data, error } = await supabase
       .from("quotations")
@@ -219,7 +220,7 @@ export function useQuotations() {
       .order("created_at", { ascending: false })
       .limit(1);
     if (error || !data || data.length === 0) return "GTE-001";
-    const last = data[0].quote_number; // "GTE-007"
+    const last = data[0].quote_number;
     const num = parseInt(last.split("-")[1] || "0", 10);
     return `GTE-${String(num + 1).padStart(3, "0")}`;
   };
@@ -247,6 +248,8 @@ export function useQuotations() {
 }
 
 // ── Invoices ──
+// Payments are stored as a JSONB array on each invoice row.
+// No separate invoice_payments table — avoids all RLS/realtime issues.
 
 export function useInvoices() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -258,7 +261,14 @@ export function useInvoices() {
         .from("invoices")
         .select("*")
         .order("created_at", { ascending: false });
-      if (!error && data) setInvoices(data as Invoice[]);
+      if (!error && data) {
+        // Ensure payments field always exists as an array
+        const normalised = (data as any[]).map((inv) => ({
+          ...inv,
+          payments: Array.isArray(inv.payments) ? inv.payments : [],
+        }));
+        setInvoices(normalised as Invoice[]);
+      }
       setReady(true);
     };
     fetchInvoices();
@@ -271,7 +281,6 @@ export function useInvoices() {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  // Generates the next invoice number, e.g. INV-001, INV-002...
   const getNextInvoiceNumber = async () => {
     const { data, error } = await supabase
       .from("invoices")
@@ -279,20 +288,82 @@ export function useInvoices() {
       .order("created_at", { ascending: false })
       .limit(1);
     if (error || !data || data.length === 0) return "INV-001";
-    const last = data[0].invoice_number; // "INV-007"
+    const last = data[0].invoice_number;
     const num = parseInt(last.split("-")[1] || "0", 10);
     return `INV-${String(num + 1).padStart(3, "0")}`;
   };
 
-  const addInvoice = async (invoice: Omit<Invoice, "id" | "created_at" | "invoice_number" | "payment_status">) => {
+  const addInvoice = async (invoice: Omit<Invoice, "id" | "created_at" | "invoice_number" | "payment_status" | "payments">) => {
     const invoice_number = await getNextInvoiceNumber();
     const { data, error } = await supabase
       .from("invoices")
-      .insert({ ...invoice, invoice_number, payment_status: "unpaid" })
+      .insert({ ...invoice, invoice_number, payment_status: "unpaid", payments: [] })
       .select()
       .single();
     if (error) throw error;
     return data as Invoice;
+  };
+
+  // Add a payment to an invoice — reads current payments, appends, writes back.
+  const addPayment = async (
+    invoiceId: string,
+    payment: Omit<InvoicePayment, "id" | "created_at">  // no invoice_id field needed
+  ) => {
+    // Get current invoice to read existing payments
+    const { data: current, error: fetchErr } = await supabase
+      .from("invoices")
+      .select("payments, total")
+      .eq("id", invoiceId)
+      .single();
+    if (fetchErr) throw fetchErr;
+
+    const existingPayments: InvoicePayment[] = Array.isArray(current.payments) ? current.payments : [];
+    const newPayment: InvoicePayment = {
+      ...payment,
+      id: crypto.randomUUID(),
+      created_at: new Date().toISOString(),
+    };
+    const updatedPayments = [...existingPayments, newPayment];
+
+    // Compute new status
+    const amountPaid = updatedPayments.reduce((s, p) => s + p.amount, 0);
+    const total: number = current.total;
+    let payment_status: PaymentStatus = "unpaid";
+    if (amountPaid >= total && total > 0) payment_status = "paid";
+    else if (amountPaid > 0) payment_status = "partially_paid";
+
+    const { error: updateErr } = await supabase
+      .from("invoices")
+      .update({ payments: updatedPayments, payment_status })
+      .eq("id", invoiceId);
+    if (updateErr) throw updateErr;
+
+    return newPayment;
+  };
+
+  // Remove a payment from an invoice by payment id.
+  const removePayment = async (invoiceId: string, paymentId: string) => {
+    const { data: current, error: fetchErr } = await supabase
+      .from("invoices")
+      .select("payments, total")
+      .eq("id", invoiceId)
+      .single();
+    if (fetchErr) throw fetchErr;
+
+    const existingPayments: InvoicePayment[] = Array.isArray(current.payments) ? current.payments : [];
+    const updatedPayments = existingPayments.filter((p) => p.id !== paymentId);
+
+    const amountPaid = updatedPayments.reduce((s, p) => s + p.amount, 0);
+    const total: number = current.total;
+    let payment_status: PaymentStatus = "unpaid";
+    if (amountPaid >= total && total > 0) payment_status = "paid";
+    else if (amountPaid > 0) payment_status = "partially_paid";
+
+    const { error: updateErr } = await supabase
+      .from("invoices")
+      .update({ payments: updatedPayments, payment_status })
+      .eq("id", invoiceId);
+    if (updateErr) throw updateErr;
   };
 
   const updateInvoice = async (id: string, patch: Partial<Invoice>) => {
@@ -303,91 +374,12 @@ export function useInvoices() {
     await supabase.from("invoices").delete().eq("id", id);
   };
 
-  return { invoices, ready, addInvoice, updateInvoice, removeInvoice, getNextInvoiceNumber };
+  return { invoices, ready, addInvoice, addPayment, removePayment, updateInvoice, removeInvoice, getNextInvoiceNumber };
 }
 
-// ── Invoice Payments ──
-// Each payment is a separate row so multiple installments can be tracked
-// with a full history trail per invoice.
-
-export function useInvoicePayments(invoiceId: string | null) {
-  const [payments, setPayments] = useState<InvoicePayment[]>([]);
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    if (!invoiceId) { setPayments([]); setReady(true); return; }
-
-    const fetchPayments = async () => {
-      const { data, error } = await supabase
-        .from("invoice_payments")
-        .select("*")
-        .eq("invoice_id", invoiceId)
-        .order("paid_at", { ascending: true });
-      if (!error && data) setPayments(data as InvoicePayment[]);
-      setReady(true);
-    };
-    fetchPayments();
-
-    const channel = supabase
-      .channel(`invoice_payments_changes_${nextChannelId()}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "invoice_payments" }, fetchPayments)
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [invoiceId]);
-
-  const addPayment = async (payment: Omit<InvoicePayment, "id" | "created_at">) => {
-    const { data, error } = await supabase
-      .from("invoice_payments")
-      .insert(payment)
-      .select()
-      .single();
-    if (error) throw error;
-    return data as InvoicePayment;
-  };
-
-  const removePayment = async (id: string) => {
-    await supabase.from("invoice_payments").delete().eq("id", id);
-  };
-
-  return { payments, ready, addPayment, removePayment };
-}
-
-// Fetches ALL payments across ALL invoices in one go — useful for computing
-// payment status / balance for every invoice card in a list view without
-// firing a separate query per card.
-export function useAllInvoicePayments() {
-  const [paymentsByInvoice, setPaymentsByInvoice] = useState<Record<string, InvoicePayment[]>>({});
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    const fetchAll = async () => {
-      const { data, error } = await supabase
-        .from("invoice_payments")
-        .select("*")
-        .order("paid_at", { ascending: true });
-      if (!error && data) {
-        const grouped: Record<string, InvoicePayment[]> = {};
-        (data as InvoicePayment[]).forEach((p) => {
-          if (!grouped[p.invoice_id]) grouped[p.invoice_id] = [];
-          grouped[p.invoice_id].push(p);
-        });
-        setPaymentsByInvoice(grouped);
-      }
-      setReady(true);
-    };
-    fetchAll();
-
-    const channel = supabase
-      .channel(`all_invoice_payments_changes_${nextChannelId()}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "invoice_payments" }, fetchAll)
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, []);
-
-  return { paymentsByInvoice, ready };
-}
+// ── REMOVED: useInvoicePayments and useAllInvoicePayments ──
+// Payments now live inside invoices.payments — no separate hooks needed.
+// invoice-admin.tsx reads payments directly from invoice.payments array.
 
 // ── Helpers ──
 
@@ -401,8 +393,6 @@ export function computeQuotationTotals(
   return { subtotal, total };
 }
 
-// Given an invoice total and its recorded payments, work out how much has
-// been paid, what's left, and what the resulting payment_status should be.
 export function computeInvoicePaymentSummary(total: number, payments: InvoicePayment[]) {
   const amountPaid = payments.reduce((sum, p) => sum + p.amount, 0);
   const balance = Math.max(0, total - amountPaid);

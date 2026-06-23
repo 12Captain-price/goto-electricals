@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   Plus, Trash2, Search, X, FileText, User, Phone,
   Loader2, ArrowLeft, AlertCircle, Save, Download,
@@ -6,9 +6,9 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  useInvoices, useInvoicePayments, useAllInvoicePayments, useCustomers,
+  useInvoices, useCustomers,
   computeInvoicePaymentSummary, PAYMENT_METHOD_LABELS,
-  type Invoice, type InvoicePayment, type Customer, type QuotationLineItem,
+  type Invoice, type InvoicePayment, type Customer, type QuotationLineItem, type PaymentMethod,
 } from "../lib/quotes-store";
 import { downloadInvoicePdf } from "../lib/invoice-pdf";
 
@@ -70,10 +70,17 @@ function PaymentRow({ payment, onDelete }: { payment: InvoicePayment; onDelete: 
 
 // ── Add Payment Form ──
 
-function AddPaymentForm({ invoiceId, onDone }: { invoiceId: string; onDone: () => void }) {
-  const { addPayment } = useInvoicePayments(invoiceId);
+function AddPaymentForm({
+  invoiceId,
+  onDone,
+  addPayment,
+}: {
+  invoiceId: string;
+  onDone: () => void;
+  addPayment: (invoiceId: string, payment: Omit<InvoicePayment, "id" | "created_at">) => Promise<InvoicePayment>;
+}) {
   const [amount, setAmount] = useState("");
-  const [method, setMethod] = useState<InvoicePayment["method"]>("cash");
+  const [method, setMethod] = useState<PaymentMethod>("cash");
   const [note, setNote] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [saving, setSaving] = useState(false);
@@ -83,8 +90,9 @@ function AddPaymentForm({ invoiceId, onDone }: { invoiceId: string; onDone: () =
     const amt = parseFloat(amount);
     if (!amt || amt <= 0) { setError("Enter a valid amount"); return; }
     setSaving(true);
+    setError("");
     try {
-      await addPayment({ invoice_id: invoiceId, amount: amt, method, note: note.trim() || null, paid_at: date });
+      await addPayment(invoiceId, { amount: amt, method, note: note.trim() || null, paid_at: date });
       onDone();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save payment");
@@ -107,7 +115,7 @@ function AddPaymentForm({ invoiceId, onDone }: { invoiceId: string; onDone: () =
       </div>
       <div>
         <label className="mb-1 block font-mono text-[9px] uppercase tracking-[0.15em] text-white/30">Payment Method</label>
-        <select value={method} onChange={(e) => setMethod(e.target.value as InvoicePayment["method"])} className={`${inputCls} cursor-pointer`}>
+        <select value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)} className={`${inputCls} cursor-pointer`}>
           {Object.entries(PAYMENT_METHOD_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
       </div>
@@ -128,15 +136,27 @@ function AddPaymentForm({ invoiceId, onDone }: { invoiceId: string; onDone: () =
 
 // ── Invoice Payment Panel (modal) ──
 
-function InvoicePaymentPanel({ invoice, onClose, settings }: { invoice: Invoice; onClose: () => void; settings: any }) {
-  const { payments, ready, removePayment } = useInvoicePayments(invoice.id);
+function InvoicePaymentPanel({
+  invoice,
+  onClose,
+  settings,
+  addPayment,
+  removePayment,
+}: {
+  invoice: Invoice;
+  onClose: () => void;
+  settings: any;
+  addPayment: (invoiceId: string, payment: Omit<InvoicePayment, "id" | "created_at">) => Promise<InvoicePayment>;
+  removePayment: (invoiceId: string, paymentId: string) => Promise<void>;
+}) {
   const [showAddForm, setShowAddForm] = useState(false);
+  const payments = invoice.payments ?? [];
   const summary = computeInvoicePaymentSummary(invoice.total, payments);
   const statusCfg = STATUS_CONFIG[summary.status];
 
   async function handleDelete(paymentId: string) {
     if (!confirm("Remove this payment record?")) return;
-    await removePayment(paymentId);
+    await removePayment(invoice.id, paymentId);
   }
 
   return (
@@ -200,19 +220,23 @@ function InvoicePaymentPanel({ invoice, onClose, settings }: { invoice: Invoice;
                 </button>
               )}
             </div>
-            {!ready ? (
-              <div className="flex justify-center py-6"><Loader2 size={20} className="animate-spin text-[#f97316]" /></div>
-            ) : payments.length === 0 ? (
+            {payments.length === 0 ? (
               <p className="text-center py-6 text-sm text-white/30">No payments recorded yet</p>
             ) : (
               <div className="rounded-xl border border-white/10 bg-[#0d1117] px-3">
-                {payments.map((p) => <PaymentRow key={p.id} payment={p} onDelete={() => handleDelete(p.id)} />)}
+                {payments.map((p) => (
+                  <PaymentRow key={p.id} payment={p} onDelete={() => handleDelete(p.id)} />
+                ))}
               </div>
             )}
             <AnimatePresence>
               {showAddForm && (
                 <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
-                  <AddPaymentForm invoiceId={invoice.id} onDone={() => setShowAddForm(false)} />
+                  <AddPaymentForm
+                    invoiceId={invoice.id}
+                    addPayment={addPayment}
+                    onDone={() => setShowAddForm(false)}
+                  />
                 </motion.div>
               )}
             </AnimatePresence>
@@ -231,9 +255,10 @@ function InvoicePaymentPanel({ invoice, onClose, settings }: { invoice: Invoice;
 
 // ── Invoice Card ──
 
-function InvoiceCard({ invoice, payments, onClick, onDelete }: {
-  invoice: Invoice; payments: InvoicePayment[]; onClick: () => void; onDelete: () => void;
+function InvoiceCard({ invoice, onClick, onDelete }: {
+  invoice: Invoice; onClick: () => void; onDelete: () => void;
 }) {
+  const payments = invoice.payments ?? [];
   const summary = computeInvoicePaymentSummary(invoice.total, payments);
   const statusCfg = STATUS_CONFIG[summary.status];
   const StatusIcon = statusCfg.icon;
@@ -291,7 +316,7 @@ function InvoiceCard({ invoice, payments, onClick, onDelete }: {
 
 function InvoiceBuilder({ seed, onSave, onCancel }: {
   seed?: Partial<Invoice> & { lineItems?: LineItem[] };
-  onSave: (data: Omit<Invoice, "id" | "invoice_number" | "created_at" | "payment_status">) => Promise<void>;
+  onSave: (data: Omit<Invoice, "id" | "invoice_number" | "created_at" | "payment_status" | "payments">) => Promise<void>;
   onCancel: () => void;
 }) {
   const { customers } = useCustomers();
@@ -526,31 +551,32 @@ export interface InvoiceAdminProps {
 }
 
 export function InvoiceAdmin({ settings, convertSeed, onConvertDone }: InvoiceAdminProps) {
-  const { invoices, ready, addInvoice, removeInvoice } = useInvoices();
-  const { paymentsByInvoice } = useAllInvoicePayments();
+  const { invoices, ready, addInvoice, addPayment, removePayment, removeInvoice } = useInvoices();
   const [view, setView] = useState<"list" | "builder">("list");
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [builderSeed, setBuilderSeed] = useState<(Partial<Invoice> & { lineItems?: LineItem[] }) | undefined>(convertSeed);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "unpaid" | "partially_paid" | "paid">("all");
 
-  useEffect(() => {
-    if (convertSeed) { setBuilderSeed(convertSeed); setView("builder"); }
-  }, [convertSeed]);
+  // Keep selectedInvoice in sync when invoices update (e.g. after adding a payment)
+  const liveSelectedInvoice = selectedInvoice
+    ? (invoices.find((inv) => inv.id === selectedInvoice.id) ?? selectedInvoice)
+    : null;
 
-  async function handleSave(data: Omit<Invoice, "id" | "invoice_number" | "created_at" | "payment_status">) {
+  async function handleSave(data: Omit<Invoice, "id" | "invoice_number" | "created_at" | "payment_status" | "payments">) {
     await addInvoice(data);
     setView("list"); setBuilderSeed(undefined); onConvertDone?.();
   }
 
   async function handleDelete(id: string) {
     if (!confirm("Delete this invoice? This cannot be undone.")) return;
+    if (selectedInvoice?.id === id) setSelectedInvoice(null);
     await removeInvoice(id);
   }
 
   const filtered = invoices.filter((inv) => {
     const snap = inv.customer_snapshot;
-    const payments = paymentsByInvoice[inv.id] ?? [];
+    const payments = inv.payments ?? [];
     const matchSearch = search.trim() === "" ||
       inv.invoice_number.toLowerCase().includes(search.toLowerCase()) ||
       (snap?.name || "").toLowerCase().includes(search.toLowerCase());
@@ -605,7 +631,7 @@ export function InvoiceAdmin({ settings, convertSeed, onConvertDone }: InvoiceAd
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           <AnimatePresence>
             {filtered.map((inv) => (
-              <InvoiceCard key={inv.id} invoice={inv} payments={paymentsByInvoice[inv.id] ?? []}
+              <InvoiceCard key={inv.id} invoice={inv}
                 onClick={() => setSelectedInvoice(inv)} onDelete={() => handleDelete(inv.id)} />
             ))}
           </AnimatePresence>
@@ -613,8 +639,14 @@ export function InvoiceAdmin({ settings, convertSeed, onConvertDone }: InvoiceAd
       )}
 
       <AnimatePresence>
-        {selectedInvoice && (
-          <InvoicePaymentPanel invoice={selectedInvoice} onClose={() => setSelectedInvoice(null)} settings={settings} />
+        {liveSelectedInvoice && (
+          <InvoicePaymentPanel
+            invoice={liveSelectedInvoice}
+            onClose={() => setSelectedInvoice(null)}
+            settings={settings}
+            addPayment={addPayment}
+            removePayment={removePayment}
+          />
         )}
       </AnimatePresence>
     </div>
