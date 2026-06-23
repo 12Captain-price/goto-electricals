@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   Plus, Trash2, Search, X, FileText, User, Phone,
-  Loader2, ArrowLeft, AlertCircle, Save, Download, Copy,
+  Loader2, ArrowLeft, AlertCircle, Save, Download, Copy, Receipt,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -106,6 +106,20 @@ export type BuilderSeed = {
   calloutEnabled: boolean;
   issuedBy: string;
   remark: string;
+};
+
+// ── Invoice seed type (passed up to Dashboard when converting a quotation) ──
+
+export type InvoiceSeed = {
+  quotationId?: string;
+  customerName: string;
+  customerPhone: string;
+  customerAddress: string;
+  lineItems: { description: string; quantity: number; unit_price: number }[];
+  calloutEnabled: boolean;
+  calloutAmount: number;
+  issuedBy: string;
+  remark?: string;
 };
 
 // ── Builder ──
@@ -343,10 +357,12 @@ function QuotationBuilder({ companyDefaultFee, onClose, onSaved, seed }: {
 
 // ── Quotation Card ──
 
-function QuotationCard({ q, contact, onDuplicate }: {
+function QuotationCard({ q, contact, defaultCalloutFee, onDuplicate, onConvertToInvoice }: {
   q: Quotation;
   contact: ContactInfo;
+  defaultCalloutFee: number;
   onDuplicate: (seed: BuilderSeed) => void;
+  onConvertToInvoice: (seed: InvoiceSeed) => void;
 }) {
   const [downloading, setDownloading] = useState(false);
   const [dlErr, setDlErr] = useState<string | null>(null);
@@ -373,6 +389,24 @@ function QuotationCard({ q, contact, onDuplicate }: {
       calloutEnabled: q.callout_fee_enabled,
       issuedBy: q.issued_by,
       remark: q.remark ?? "",
+    });
+  };
+
+  const handleConvertToInvoice = () => {
+    onConvertToInvoice({
+      quotationId: q.id,
+      customerName: q.customer_snapshot.name,
+      customerPhone: q.customer_snapshot.phone ?? "",
+      customerAddress: q.customer_snapshot.address ?? "",
+      lineItems: q.line_items.map((it) => ({
+        description: it.description,
+        quantity: it.qty,
+        unit_price: it.unit_price,
+      })),
+      calloutEnabled: q.callout_fee_enabled,
+      calloutAmount: q.callout_fee_amount ?? defaultCalloutFee,
+      issuedBy: q.issued_by,
+      remark: q.remark ?? undefined,
     });
   };
 
@@ -430,6 +464,14 @@ function QuotationCard({ q, contact, onDuplicate }: {
         >
           <Copy className="h-4 w-4" /> Duplicate
         </button>
+        <button
+          onClick={handleConvertToInvoice}
+          title="Convert to invoice"
+          aria-label="Convert to invoice"
+          className="flex items-center justify-center gap-2 rounded-full border border-[#a855f7]/40 bg-[#a855f7]/10 px-4 py-2.5 text-sm font-semibold text-[#a855f7] hover:bg-[#a855f7]/20"
+        >
+          <Receipt className="h-4 w-4" />
+        </button>
       </div>
     </div>
   );
@@ -442,17 +484,18 @@ export function QuotationsAdmin({
   contact,
   incomingSeed,
   onSeedConsumed,
+  onConvertToInvoice,
 }: {
   defaultCalloutFee: number;
   contact: ContactInfo;
   incomingSeed?: BuilderSeed;
   onSeedConsumed?: () => void;
+  onConvertToInvoice: (seed: InvoiceSeed) => void;
 }) {
   const { quotations, ready } = useQuotations();
   const [view, setView] = useState<"list" | "builder">("list");
   const [builderSeed, setBuilderSeed] = useState<BuilderSeed | undefined>(undefined);
 
-  // When Dashboard passes an incomingSeed (from Convert to Quotation), open the builder immediately
   useEffect(() => {
     if (incomingSeed) {
       setBuilderSeed(incomingSeed);
@@ -513,7 +556,9 @@ export function QuotationsAdmin({
               key={q.id}
               q={q}
               contact={contact}
+              defaultCalloutFee={defaultCalloutFee}
               onDuplicate={(seed) => openBuilder(seed)}
+              onConvertToInvoice={onConvertToInvoice}
             />
           ))}
         </div>
