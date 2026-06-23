@@ -85,7 +85,7 @@ export async function shareProject(
   siteUrl: string,
 ): Promise<ShareResult> {
   const shareUrl = `${siteUrl}#projects`;
-  const text = `${project.title} — Go To Electricals\n${project.description}`;
+  const text = `${project.title} — Go Electricals\n${project.description}`;
 
   // Try sharing with the rendered card image attached, where supported.
   if (typeof navigator !== "undefined" && navigator.share) {

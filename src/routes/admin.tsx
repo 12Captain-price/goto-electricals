@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { useSiteData, AUTH_KEY, type Project, type Testimonial, type HeroSlide, type Service, type ServiceOperation, type Certificate } from "@/lib/site-store";
 import { useQuotes, useCustomers, type Quote, type QuoteStatus, type Customer } from "@/lib/quotes-store";
-import { QuotationsAdmin, type BuilderSeed } from "@/components/quotation-builder";
+import { QuotationsAdmin, type BuilderSeed, type InvoiceSeed } from "@/components/quotation-builder";
 import { InvoiceAdmin } from "@/components/invoice-admin";
 import { supabase } from "@/lib/supabase";
 
@@ -54,7 +54,7 @@ function Login({ onAuth }: { onAuth: () => void }) {
       <form onSubmit={submit} className="mx-auto mt-32 max-w-sm rounded-2xl border border-white/10 bg-[#161b22] p-8">
         <ShieldCheck className="mx-auto mb-4 h-10 w-10 text-[#f97316]" />
         <h1 className="text-center font-display text-xl font-bold text-white">Admin Access</h1>
-        <p className="mb-8 text-center font-mono text-sm text-white/40">Gow To Electricals — Manager Portal</p>
+        <p className="mb-8 text-center font-mono text-sm text-white/40">Gocol Electricals — Manager Portal</p>
         <div className="relative">
           <input
             type={show ? "text" : "password"}
@@ -80,18 +80,7 @@ function Login({ onAuth }: { onAuth: () => void }) {
 
 type Tab = "overview" | "hero" | "services" | "portfolio" | "certificates" | "testimonials" | "contact" | "stats" | "settings" | "quotes" | "customers" | "quotations" | "invoices";
 
-// Seed type for converting a quotation to an invoice
-type InvoiceSeed = {
-  quotationId?: string;
-  customerName: string;
-  customerPhone: string;
-  customerAddress: string;
-  lineItems: { description: string; quantity: number; unit_price: number }[];
-  calloutEnabled: boolean;
-  calloutAmount: number;
-  issuedBy: string;
-  remark?: string;
-};
+
 
 function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [tab, setTab] = useState<Tab>("overview");
@@ -140,7 +129,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
     <div className="min-h-screen bg-[#0d1117] text-[#f0f6fc]">
       <aside className="fixed top-0 left-0 flex h-screen w-64 flex-col border-r border-white/10 bg-[#161b22] p-5 overflow-y-auto">
         <div className="mb-8 font-display text-lg font-bold">
-          <span className="text-[#f97316]">GOW TO</span> <span className="text-white">ADMIN</span>
+          <span className="text-[#f97316]">GOCOL</span> <span className="text-white">ADMIN</span>
         </div>
         <nav className="flex-1 space-y-1">
           {nav.map((n) => (

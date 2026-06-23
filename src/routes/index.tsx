@@ -47,7 +47,7 @@ function Navbar() {
         <a href="#home" className="group flex items-center gap-3">
           <img
             src={logoUrl}
-            alt="Gow To Electricals"
+            alt="Gocol Electricals"
             className="h-14 w-14 rounded-lg object-contain shadow-[0_0_14px_rgba(249,115,22,0.35)] transition-shadow duration-300 group-hover:shadow-[0_0_28px_rgba(249,115,22,0.7)]"
           />
           <span className="font-display text-lg font-bold tracking-tight">
@@ -282,7 +282,7 @@ function About({ stats }: { stats: { years: string; projects: string; clients: s
           </h2>
         </div>
         <div className="space-y-5 text-base text-white/65 md:col-span-3">
-          <p>Gow To Electricals is a Bulawayo-based electrical contracting company founded and led by <span className="text-white">Collen N Goto</span>. With 6 years of hands-on trade experience across residential, commercial and industrial projects, every job is backed by proper licensing and a commitment to safety.</p>
+          <p>Gocol Electricals is a Bulawayo-based electrical contracting company founded and led by <span className="text-white">Collen N Goto</span>. With 6 years of hands-on trade experience across residential, commercial and industrial projects, every job is backed by proper licensing and a commitment to safety.</p>
           <p>We are ECB registered and actively building our compliance portfolio. Whether it's a fault at 7pm or a full commercial fit-out, we show up, do it right, and stand behind our work.</p>
         </div>
       </div>
@@ -548,7 +548,7 @@ function Contact({ contact }: { contact: ReturnType<typeof useSiteData>["data"][
   const handleSend = async () => {
     await saveQuote("whatsapp");
 
-    const body = `*New Quote Request — Gow To Electricals*\n\n*Service:* ${service}\n*Name:* ${name}\n*Phone:* ${phone}\n*Location:* ${location || "Not provided"}\n*Message:* ${message || "—"}\n\nNote: A $15 fixed call-out fee applies before work begins — covers site visit, assessment & fault diagnosis.`;
+    const body = `*New Quote Request — Gocol Electricals*\n\n*Service:* ${service}\n*Name:* ${name}\n*Phone:* ${phone}\n*Location:* ${location || "Not provided"}\n*Message:* ${message || "—"}\n\nNote: A $15 fixed call-out fee applies before work begins — covers site visit, assessment & fault diagnosis.`;
     window.open(`https://wa.me/${contact.whatsapp}?text=${encodeURIComponent(body)}`, "_blank");
     setSent(true);
     setTimeout(() => {
@@ -923,7 +923,7 @@ function Footer({ contact }: { contact: ReturnType<typeof useSiteData>["data"]["
             <div className="flex items-center gap-2">
               <Zap className="h-5 w-5 text-[#f97316]" />
               <span className="font-display text-lg font-bold tracking-tight">
-                <span className="text-[#f97316]">GOW TO</span><span className="text-white"> ELECTRICALS</span>
+                <span className="text-[#f97316]">GOCOL</span><span className="text-white"> ELECTRICALS</span>
               </span>
             </div>
             <p className="mt-2 font-mono text-sm text-white/40">Licensed · Insured · ECB Registered</p>
@@ -961,7 +961,7 @@ function Footer({ contact }: { contact: ReturnType<typeof useSiteData>["data"]["
           </div>
         </div>
         <div className="mt-8 flex flex-col items-center justify-between gap-2 font-mono text-[10px] uppercase tracking-wider text-white/30 md:flex-row">
-          <span>ECB Reg: Pending · © 2026 Gow To Electricals</span>
+          <span>ECB Reg: Pending · © 2026 Gocol Electricals</span>
           <span>Bulawayo · Zimbabwe · All Rights Reserved</span>
         </div>
       </div>

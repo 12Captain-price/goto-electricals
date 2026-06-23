@@ -77,13 +77,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Gow To Electricals" },
+      { title: "Gocol Electricals" },
       { name: "description", content: "Licensed, insured & ECB registered electrical contractors in Bulawayo. Residential, commercial & industrial. 24/7 emergency callouts." },
-      { property: "og:title", content: "Gow To Electricals" },
+      { property: "og:title", content: "Gocol Electricals" },
       { property: "og:description", content: "Licensed, insured & ECB registered electrical contractors in Bulawayo. Residential, commercial & industrial. 24/7 emergency callouts." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { name: "twitter:title", content: "Gow To Electricals" },
+      { name: "twitter:title", content: "Gocol Electricals" },
       { name: "twitter:description", content: "Licensed, insured & ECB registered electrical contractors in Bulawayo. Residential, commercial & industrial. 24/7 emergency callouts." },
       { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/38b7c028-3ad9-4eaf-ac5c-eca7f6b7001d" },
       { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/38b7c028-3ad9-4eaf-ac5c-eca7f6b7001d" },
@@ -120,7 +120,6 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
     </QueryClientProvider>
   );

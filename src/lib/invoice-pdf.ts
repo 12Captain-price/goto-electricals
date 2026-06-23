@@ -44,7 +44,7 @@ export async function downloadInvoicePdf(
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(16);
   pdf.setTextColor(...dark);
-  pdf.text("GO TO ELECTRICALS", margin, y);
+  pdf.text("GOCOL ELECTRICALS", margin, y);
 
   pdf.setFont("helvetica", "normal");
   pdf.setFontSize(9);
