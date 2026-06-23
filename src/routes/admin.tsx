@@ -5,10 +5,12 @@ import {
   Star, Phone, BarChart2, Settings, LogOut, Trash2, Plus, CheckCircle, Save,
   Image, ChevronUp, ChevronDown, Zap, X, FileText, Upload, Loader2, Award,
   Inbox, MapPin, MessageCircle, Mail, User, Clock, Users, Search, StickyNote, FileSignature,
+  Receipt,
 } from "lucide-react";
 import { useSiteData, AUTH_KEY, type Project, type Testimonial, type HeroSlide, type Service, type ServiceOperation, type Certificate } from "@/lib/site-store";
 import { useQuotes, useCustomers, type Quote, type QuoteStatus, type Customer } from "@/lib/quotes-store";
 import { QuotationsAdmin, type BuilderSeed } from "@/components/quotation-builder";
+import { InvoiceAdmin } from "@/components/invoice-admin";
 import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/admin")({
@@ -76,7 +78,20 @@ function Login({ onAuth }: { onAuth: () => void }) {
   );
 }
 
-type Tab = "overview" | "hero" | "services" | "portfolio" | "certificates" | "testimonials" | "contact" | "stats" | "settings" | "quotes" | "customers" | "quotations";
+type Tab = "overview" | "hero" | "services" | "portfolio" | "certificates" | "testimonials" | "contact" | "stats" | "settings" | "quotes" | "customers" | "quotations" | "invoices";
+
+// Seed type for converting a quotation to an invoice
+type InvoiceSeed = {
+  quotationId?: string;
+  customerName: string;
+  customerPhone: string;
+  customerAddress: string;
+  lineItems: { description: string; quantity: number; unit_price: number }[];
+  calloutEnabled: boolean;
+  calloutAmount: number;
+  issuedBy: string;
+  remark?: string;
+};
 
 function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [tab, setTab] = useState<Tab>("overview");
@@ -84,12 +99,18 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   const { quotes } = useQuotes();
   const [toast, setToast] = useState<string | null>(null);
   const [pendingSeed, setPendingSeed] = useState<BuilderSeed | undefined>(undefined);
+  const [pendingInvoiceSeed, setPendingInvoiceSeed] = useState<InvoiceSeed | undefined>(undefined);
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
 
   const convertToQuotation = (seed: BuilderSeed) => {
     setPendingSeed(seed);
     setTab("quotations");
+  };
+
+  const convertToInvoice = (seed: InvoiceSeed) => {
+    setPendingInvoiceSeed(seed);
+    setTab("invoices");
   };
 
   const newQuotesCount = quotes.filter((q) => q.status === "new").length;
@@ -99,6 +120,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
     { id: "quotes", icon: Inbox, label: "Quotes", badge: newQuotesCount },
     { id: "customers", icon: Users, label: "Customers" },
     { id: "quotations", icon: FileSignature, label: "Quotations" },
+    { id: "invoices", icon: Receipt, label: "Invoices" },
     { id: "hero", icon: Image, label: "Hero Slideshow" },
     { id: "services", icon: Zap, label: "Services" },
     { id: "portfolio", icon: ImagePlus, label: "Portfolio" },
@@ -108,6 +130,11 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
     { id: "stats", icon: BarChart2, label: "Stats" },
     { id: "settings", icon: Settings, label: "Settings" },
   ];
+
+  // Build invoice convert seed from a quotation object
+  const handleConvertQuotationToInvoice = (seed: InvoiceSeed) => {
+    convertToInvoice(seed);
+  };
 
   return (
     <div className="min-h-screen bg-[#0d1117] text-[#f0f6fc]">
@@ -147,7 +174,34 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
             contact={data.contact}
             incomingSeed={pendingSeed}
             onSeedConsumed={() => setPendingSeed(undefined)}
+            onConvertToInvoice={handleConvertQuotationToInvoice}
           />
+        )}
+        {tab === "invoices" && (
+          <div>
+            <h1 className="mb-8 font-display text-2xl font-bold">Invoices</h1>
+            <InvoiceAdmin
+              settings={data.contact}
+              convertSeed={
+                pendingInvoiceSeed
+                  ? {
+                      customer_snapshot: {
+                        name: pendingInvoiceSeed.customerName,
+                        phone: pendingInvoiceSeed.customerPhone,
+                        address: pendingInvoiceSeed.customerAddress,
+                      },
+                      lineItems: pendingInvoiceSeed.lineItems,
+                      callout_fee_enabled: pendingInvoiceSeed.calloutEnabled,
+                      callout_fee_amount: pendingInvoiceSeed.calloutAmount,
+                      issued_by: pendingInvoiceSeed.issuedBy,
+                      remark: pendingInvoiceSeed.remark,
+                      quotation_id: pendingInvoiceSeed.quotationId,
+                    }
+                  : undefined
+              }
+              onConvertDone={() => setPendingInvoiceSeed(undefined)}
+            />
+          </div>
         )}
         {tab === "hero" && <HeroSlideshowAdmin data={data} update={update} showToast={showToast} />}
         {tab === "services" && <ServicesAdmin data={data} update={update} showToast={showToast} />}
@@ -639,8 +693,6 @@ function HeroSlideshowAdmin({ data, update, showToast }: { data: ReturnType<type
     </div>
   );
 }
-
-const ICON_OPTIONS = ["Zap", "Building2", "Home", "Battery", "Sun", "LayoutDashboard", "Wrench", "Droplet"];
 
 function OperationsModal({ service, onClose, onSave }: { service: Service; onClose: () => void; onSave: (ops: ServiceOperation[]) => void }) {
   const [ops, setOps] = useState<ServiceOperation[]>(service.operations);
