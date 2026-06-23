@@ -1,6 +1,5 @@
 // Generates a branded Invoice PDF — same layout style as the Quotation PDF,
-// but with a Due Date field and a large diagonal payment-status stamp
-// (PAID / PARTIALLY PAID / UNPAID) overlaid across the document.
+// but with a Due Date field and a payment-status stamp placed neatly below the TOTAL line.
 
 import type { Invoice, InvoicePayment, PaymentMethod } from "@/lib/quotes-store";
 import { PAYMENT_METHOD_LABELS, computeInvoicePaymentSummary } from "@/lib/quotes-store";
@@ -32,6 +31,7 @@ export async function downloadInvoicePdf(
   let y = 18;
 
   const orange: [number, number, number] = [249, 115, 22];
+  const black: [number, number, number] = [20, 20, 20];
   const dark: [number, number, number] = [40, 40, 40];
   const grey: [number, number, number] = [120, 120, 120];
   const green: [number, number, number] = [34, 197, 94];
@@ -40,11 +40,15 @@ export async function downloadInvoicePdf(
 
   const { amountPaid, balance, status } = computeInvoicePaymentSummary(invoice.total, payments);
 
-  // ── Header: company details (left) + logo & invoice number (right) ──
+  // ── Header: GOCOL (black) + ELECTRICALS (orange), logo right ──
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(16);
-  pdf.setTextColor(...dark);
-  pdf.text("GOCOL ELECTRICALS", margin, y);
+  pdf.setTextColor(...black);
+  const gocolText = "GOCOL";
+  pdf.text(gocolText, margin, y);
+  const gocolWidth = pdf.getTextWidth(gocolText);
+  pdf.setTextColor(...orange);
+  pdf.text(" ELECTRICALS", margin + gocolWidth, y);
 
   pdf.setFont("helvetica", "normal");
   pdf.setFontSize(9);
@@ -62,7 +66,7 @@ export async function downloadInvoicePdf(
     const logoDataUrl = await imageUrlToDataUrl(logoUrl);
     pdf.addImage(logoDataUrl, "JPEG", rightX - 22, 14, 22, 22);
   } catch {
-    // skip logo if it fails to load rather than breaking PDF generation
+    // skip logo if it fails to load
   }
 
   pdf.setFont("helvetica", "bold");
@@ -173,7 +177,48 @@ export async function downloadInvoicePdf(
   pdf.setTextColor(...dark);
   pdf.text("TOTAL:", colPriceX, y);
   pdf.text(`$${invoice.total.toFixed(2)}`, colTotalX, y, { align: "right" });
-  y += 8;
+  y += 10;
+
+  // ── Payment status stamp — neat box placed directly below TOTAL ──
+  const stampConfig: Record<typeof status, { label: string; color: [number, number, number] }> = {
+    paid:           { label: "PAID",           color: green },
+    partially_paid: { label: "PARTIALLY PAID", color: amber },
+    unpaid:         { label: "UNPAID",         color: red   },
+  };
+  const stamp = stampConfig[status];
+
+  // Draw a clean horizontal badge (no rotation) flush against the right column
+  const stampFontSize = 11;
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(stampFontSize);
+  pdf.setTextColor(...stamp.color);
+
+  const stampLabel = stamp.label;
+  const stampTextWidth = pdf.getTextWidth(stampLabel);
+  const stampPadX = 5;
+  const stampPadY = 3.5;
+  const stampBoxW = stampTextWidth + stampPadX * 2;
+  const stampBoxH = stampFontSize * 0.45 + stampPadY * 2;
+  const stampBoxX = colTotalX - stampBoxW;  // right-aligned with totals column
+  const stampBoxY = y - 1;
+
+  // Filled background (light tint)
+  pdf.setFillColor(stamp.color[0], stamp.color[1], stamp.color[2]);
+  // Draw rounded-ish rect by drawing a regular rect (jsPDF basic)
+  pdf.setGState(new (pdf as any).GState({ opacity: 0.12 }));
+  pdf.rect(stampBoxX, stampBoxY, stampBoxW, stampBoxH, "F");
+  pdf.setGState(new (pdf as any).GState({ opacity: 1 }));
+
+  // Border
+  pdf.setDrawColor(...stamp.color);
+  pdf.setLineWidth(0.6);
+  pdf.rect(stampBoxX, stampBoxY, stampBoxW, stampBoxH, "S");
+
+  // Text centred inside box
+  pdf.setTextColor(...stamp.color);
+  pdf.text(stampLabel, stampBoxX + stampPadX + stampTextWidth / 2, stampBoxY + stampPadY + stampFontSize * 0.35, { align: "center" });
+
+  y = stampBoxY + stampBoxH + 10;
 
   // ── Payment summary ──
   if (payments.length > 0) {
@@ -186,8 +231,8 @@ export async function downloadInvoicePdf(
     y += 6;
     pdf.setTextColor(...grey);
     pdf.text("Balance Remaining:", colPriceX, y);
-    pdf.setTextColor(...dark);
     pdf.setFont("helvetica", "bold");
+    pdf.setTextColor(...dark);
     pdf.text(`$${balance.toFixed(2)}`, colTotalX, y, { align: "right" });
     y += 10;
 
@@ -219,62 +264,6 @@ export async function downloadInvoicePdf(
   pdf.text(`Issued by: ${invoice.issued_by}`, margin, y);
   y += 6;
   pdf.text(`Date: ${new Date(invoice.created_at).toLocaleDateString()}`, margin, y);
-
-  // ── Diagonal payment-status stamp (drawn last, on top, semi-transparent) ──
-  const stampConfig: Record<typeof status, { label: string; color: [number, number, number] }> = {
-    paid: { label: "PAID", color: green },
-    partially_paid: { label: "PARTIALLY PAID", color: amber },
-    unpaid: { label: "UNPAID", color: red },
-  };
-  const stamp = stampConfig[status];
-
-  const centerX = pageWidth / 2;
-  const centerY = 160;
-  const angle = 28; // degrees, diagonal tilt
-
-  const gs = (pdf as any).GState ? new (pdf as any).GState({ opacity: 0.25 }) : null;
-  if (gs) (pdf as any).setGState(gs);
-
-  pdf.setTextColor(...stamp.color);
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(stamp.label.length > 10 ? 30 : 42);
-
-  // Draw rotated text using jsPDF's angle option
-  pdf.text(stamp.label, centerX, centerY, { align: "center", angle });
-
-  // Draw a thick rotated border box around the stamp for the "rubber stamp" look
-  pdf.setDrawColor(...stamp.color);
-  pdf.setLineWidth(1.4);
-  const boxWidth = stamp.label.length > 10 ? 110 : 80;
-  const boxHeight = 22;
-  pdf.saveGraphicsState?.();
-  // jsPDF doesn't support rotated rects directly without transform math,
-  // so approximate the stamp border by drawing it around the text bounding box
-  // using the same angle via a transformation matrix where available.
-  try {
-    const rad = (angle * Math.PI) / 180;
-    const cos = Math.cos(rad);
-    const sin = Math.sin(rad);
-    const hw = boxWidth / 2;
-    const hh = boxHeight / 2;
-    const corners = [
-      [-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh],
-    ].map(([x, y0]) => [
-      centerX + x * cos - y0 * sin,
-      centerY + x * sin + y0 * cos,
-    ]);
-    for (let i = 0; i < 4; i++) {
-      const [x1, y1] = corners[i];
-      const [x2, y2] = corners[(i + 1) % 4];
-      pdf.line(x1, y1, x2, y2);
-    }
-  } catch {
-    // if anything goes wrong with the manual border math, the stamp text alone is enough
-  }
-
-  // Reset opacity back to fully opaque for anything drawn after (nothing currently, but safe)
-  const gsReset = (pdf as any).GState ? new (pdf as any).GState({ opacity: 1 }) : null;
-  if (gsReset) (pdf as any).setGState(gsReset);
 
   pdf.save(`${invoice.invoice_number}.pdf`);
 }
