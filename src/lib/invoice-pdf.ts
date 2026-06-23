@@ -4,7 +4,7 @@
 import type { Invoice, InvoicePayment, PaymentMethod } from "@/lib/quotes-store";
 import { PAYMENT_METHOD_LABELS, computeInvoicePaymentSummary } from "@/lib/quotes-store";
 import type { ContactInfo } from "@/lib/site-store";
-import logoUrl from "@/assets/goto-logo.jpeg";
+import logoUrl from "@/assets/goto-logo.png";
 
 async function imageUrlToDataUrl(url: string): Promise<string> {
   const res = await fetch(url);

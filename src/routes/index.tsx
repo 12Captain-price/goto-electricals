@@ -11,7 +11,7 @@ import {
 import { useSiteData, type Project, type HeroSlide, type Service, type Certificate } from "@/lib/site-store";
 import { useQuotes } from "@/lib/quotes-store";
 import { downloadProjectPng, downloadProjectPdf, shareProject } from "@/lib/project-export";
-import logoUrl from "@/assets/goto-logo.jpeg";
+import logoUrl from "@/assets/goto-logo.png";
 
 export const Route = createFileRoute("/")(({
   component: Index,

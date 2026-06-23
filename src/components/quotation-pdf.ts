@@ -29,7 +29,7 @@ async function loadLogo(): Promise<string> {
       resolve(canvas.toDataURL("image/jpeg"));
     };
     img.onerror = () => resolve("");
-    img.src = `/goto-logo.jpeg?t=${Date.now()}`;
+    img.src = `/goto-logo.png?t=${Date.now()}`;
   });
 }
 

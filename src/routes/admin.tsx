@@ -54,7 +54,7 @@ function Login({ onAuth }: { onAuth: () => void }) {
       <form onSubmit={submit} className="mx-auto mt-32 max-w-sm rounded-2xl border border-white/10 bg-[#161b22] p-8">
         <ShieldCheck className="mx-auto mb-4 h-10 w-10 text-[#f97316]" />
         <h1 className="text-center font-display text-xl font-bold text-white">Admin Access</h1>
-        <p className="mb-8 text-center font-mono text-sm text-white/40">Gocol Electricals — Manager Portal</p>
+        <p className="mb-8 text-center font-mono text-sm text-white/40">Gow Toy Electricals — Manager Portal</p>
         <div className="relative">
           <input
             type={show ? "text" : "password"}
@@ -79,8 +79,6 @@ function Login({ onAuth }: { onAuth: () => void }) {
 }
 
 type Tab = "overview" | "hero" | "services" | "portfolio" | "certificates" | "testimonials" | "contact" | "stats" | "settings" | "quotes" | "customers" | "quotations" | "invoices";
-
-
 
 function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [tab, setTab] = useState<Tab>("overview");
@@ -120,16 +118,11 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
     { id: "settings", icon: Settings, label: "Settings" },
   ];
 
-  // Build invoice convert seed from a quotation object
-  const handleConvertQuotationToInvoice = (seed: InvoiceSeed) => {
-    convertToInvoice(seed);
-  };
-
   return (
     <div className="min-h-screen bg-[#0d1117] text-[#f0f6fc]">
       <aside className="fixed top-0 left-0 flex h-screen w-64 flex-col border-r border-white/10 bg-[#161b22] p-5 overflow-y-auto">
         <div className="mb-8 font-display text-lg font-bold">
-          <span className="text-[#f97316]">GOCOL</span> <span className="text-white">ADMIN</span>
+          <span className="text-[#f97316]">GOW TO</span> <span className="text-white">ADMIN</span>
         </div>
         <nav className="flex-1 space-y-1">
           {nav.map((n) => (
@@ -163,7 +156,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
             contact={data.contact}
             incomingSeed={pendingSeed}
             onSeedConsumed={() => setPendingSeed(undefined)}
-            onConvertToInvoice={handleConvertQuotationToInvoice}
+            onConvertToInvoice={convertToInvoice}
           />
         )}
         {tab === "invoices" && (
@@ -178,6 +171,8 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                         name: pendingInvoiceSeed.customerName,
                         phone: pendingInvoiceSeed.customerPhone,
                         address: pendingInvoiceSeed.customerAddress,
+                        vat: pendingInvoiceSeed.customerVat || undefined,
+                        tin: pendingInvoiceSeed.customerTin || undefined,
                       },
                       lineItems: pendingInvoiceSeed.lineItems,
                       callout_fee_enabled: pendingInvoiceSeed.calloutEnabled,
@@ -419,15 +414,26 @@ function QuotesAdmin({ showToast, onConvert }: {
 
 // ── Customers Admin ──
 
+type CustomerFormData = {
+  name: string;
+  phone: string;
+  address: string;
+  notes: string;
+  vat: string;
+  tin: string;
+};
+
 function CustomerModal({ customer, onClose, onSave }: {
   customer: Customer | null;
   onClose: () => void;
-  onSave: (data: { name: string; phone: string; address: string; notes: string }) => void;
+  onSave: (data: CustomerFormData) => void;
 }) {
   const [name, setName] = useState(customer?.name ?? "");
   const [phone, setPhone] = useState(customer?.phone ?? "");
   const [address, setAddress] = useState(customer?.address ?? "");
   const [notes, setNotes] = useState(customer?.notes ?? "");
+  const [vat, setVat] = useState(customer?.vat ?? "");
+  const [tin, setTin] = useState(customer?.tin ?? "");
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -458,11 +464,21 @@ function CustomerModal({ customer, onClose, onSave }: {
             <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">Notes</label>
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className={inputCls} placeholder="Anything worth remembering about this client..." />
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">VAT Number</label>
+              <input value={vat} onChange={(e) => setVat(e.target.value)} className={inputCls} placeholder="VAT number" />
+            </div>
+            <div>
+              <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">TIN Number</label>
+              <input value={tin} onChange={(e) => setTin(e.target.value)} className={inputCls} placeholder="TIN number" />
+            </div>
+          </div>
         </div>
         <div className="mt-5 flex gap-2">
           <button onClick={onClose} className="flex-1 rounded-full border border-white/10 py-2.5 text-sm text-white/70 hover:text-white">Cancel</button>
           <button
-            onClick={() => { if (name.trim()) onSave({ name: name.trim(), phone: phone.trim(), address: address.trim(), notes: notes.trim() }); }}
+            onClick={() => { if (name.trim()) onSave({ name: name.trim(), phone: phone.trim(), address: address.trim(), notes: notes.trim(), vat: vat.trim(), tin: tin.trim() }); }}
             disabled={!name.trim()}
             className="flex-1 rounded-full bg-[#f97316] py-2.5 text-sm font-semibold text-black hover:bg-orange-400 disabled:opacity-40"
           >
@@ -514,6 +530,12 @@ function CustomerCard({ customer, onEdit, onDelete }: {
             <StickyNote className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-white/30" /> {customer.notes}
           </div>
         )}
+        {(customer.vat || customer.tin) && (
+          <div className="flex items-center gap-3 text-white/40 font-mono text-xs">
+            {customer.vat && <span>VAT: {customer.vat}</span>}
+            {customer.tin && <span>TIN: {customer.tin}</span>}
+          </div>
+        )}
       </div>
 
       <button
@@ -537,7 +559,7 @@ function CustomersAdmin({ showToast }: { showToast: (m: string) => void }) {
     (c.phone ?? "").includes(search)
   );
 
-  const handleSave = async (data: { name: string; phone: string; address: string; notes: string }) => {
+  const handleSave = async (data: CustomerFormData) => {
     if (editing) {
       await updateCustomer(editing.id, data);
       showToast("Customer updated");
