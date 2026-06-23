@@ -127,7 +127,7 @@ function Hero({ slides }: { slides: HeroSlide[] }) {
         <h1 className="font-display font-bold leading-[0.95] tracking-tight" style={{ fontSize: "clamp(2.8rem, 8vw, 5.5rem)" }}>
           Bulawayo's Trusted<br />Electrical <span className="text-[#f97316]">Contractors.</span>
         </h1>
-        <p className="mx-auto mt-6 max-w-xl text-lg text-white/60">Residential · Commercial · Industrial — Licensed, Insured & ECB Registered.</p>
+        <p className="mx-auto mt-6 max-w-xl text-lg text-white/60">Residential · Commercial · Industrial — Licensed & ECB Registered.</p>
         <div className="mt-10 flex flex-wrap justify-center gap-3">
           <a href="#contact" className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.03] px-6 py-3 font-semibold text-white transition hover:border-[#f97316]/60 hover:text-[#f97316]">
             Get In Touch ↓
@@ -136,7 +136,7 @@ function Hero({ slides }: { slides: HeroSlide[] }) {
         <div className="mt-16 flex flex-wrap justify-center gap-3">
           {[
             { icon: ShieldCheck, label: "ECB Registered" },
-            { icon: BadgeCheck, label: "Fully Insured" },
+            
             { icon: FileCheck, label: "COC Certified" },
             { icon: Clock, label: "24/7 Emergency" },
           ].map((b) => (
@@ -926,7 +926,7 @@ function Footer({ contact }: { contact: ReturnType<typeof useSiteData>["data"]["
                 <span className="text-[#f97316]">GOCOL</span><span className="text-white"> ELECTRICALS</span>
               </span>
             </div>
-            <p className="mt-2 font-mono text-sm text-white/40">Licensed · Insured · ECB Registered</p>
+            <p className="mt-2 font-mono text-sm text-white/40">Licensed  · ECB Registered</p>
           </div>
           <div>
             <div className="mb-4 font-mono text-[10px] uppercase tracking-[0.25em] text-white/40">Quick Links</div>
