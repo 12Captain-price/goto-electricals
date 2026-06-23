@@ -51,7 +51,7 @@ function Navbar() {
             className="h-14 w-14 rounded-lg object-contain shadow-[0_0_14px_rgba(249,115,22,0.35)] transition-shadow duration-300 group-hover:shadow-[0_0_28px_rgba(249,115,22,0.7)]"
           />
           <span className="font-display text-lg font-bold tracking-tight">
-            <span className="text-[#f97316]">GOCOL TO</span>
+            <span className="text-[#f97316]">GOCOL </span>
             <span className="text-[#f0f6fc]"> ELECTRICALS</span>
           </span>
         </a>
