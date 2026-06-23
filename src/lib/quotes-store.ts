@@ -330,7 +330,7 @@ export function useInvoicePayments(invoiceId: string | null) {
 
     const channel = supabase
       .channel(`invoice_payments_changes_${nextChannelId()}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "invoice_payments", filter: `invoice_id=eq.${invoiceId}` }, fetchPayments)
+      .on("postgres_changes", { event: "*", schema: "public", table: "invoice_payments" }, fetchPayments)
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
