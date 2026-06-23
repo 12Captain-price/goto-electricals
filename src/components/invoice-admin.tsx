@@ -12,29 +12,27 @@ import {
   AlertCircle,
   Save,
   Download,
-  Copy,
-  DollarSign,
-  Calendar,
   CheckCircle,
   Clock,
   AlertTriangle,
   ChevronDown,
   ChevronUp,
-  CreditCard,
   History,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   useInvoices,
   useInvoicePayments,
+  useAllInvoicePayments,
   useCustomers,
   computeInvoicePaymentSummary,
   PAYMENT_METHOD_LABELS,
   type Invoice,
   type InvoicePayment,
   type Customer,
+  type QuotationLineItem,
 } from "../lib/quotes-store";
-import { generateInvoicePDF } from "../lib/invoice-pdf";
+import { downloadInvoicePdf } from "../lib/invoice-pdf";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -68,8 +66,20 @@ function fmt(n: number) {
 
 // ── Empty line item ───────────────────────────────────────────────────────────
 
-function emptyItem() {
+type LineItem = { description: string; quantity: number; unit_price: number };
+
+function emptyItem(): LineItem {
   return { description: "", quantity: 1, unit_price: 0 };
+}
+
+// Map the builder's LineItem shape → QuotationLineItem shape used by Invoice
+function toQuotationLineItems(items: LineItem[]): QuotationLineItem[] {
+  return items.map((i) => ({
+    description: i.description,
+    unit_price: i.unit_price,
+    qty: i.quantity,
+    total: i.quantity * i.unit_price,
+  }));
 }
 
 // ── Payment Row ───────────────────────────────────────────────────────────────
@@ -131,17 +141,19 @@ function AddPaymentForm({
       return;
     }
     setSaving(true);
-    const err = await addPayment({
-      amount: amt,
-      method,
-      note: note.trim() || undefined,
-      paid_at: date,
-    });
-    setSaving(false);
-    if (err) {
-      setError(err);
-    } else {
+    try {
+      await addPayment({
+        invoice_id: invoiceId,
+        amount: amt,
+        method,
+        note: note.trim() || null,
+        paid_at: date,
+      });
       onDone();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save payment");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -244,7 +256,7 @@ function InvoicePaymentPanel({
   onClose: () => void;
   settings: any;
 }) {
-  const { payments, deletePayment, loading } = useInvoicePayments(invoice.id);
+  const { payments, ready, removePayment } = useInvoicePayments(invoice.id);
   const [showAddForm, setShowAddForm] = useState(false);
 
   const summary = computeInvoicePaymentSummary(invoice.total, payments);
@@ -252,11 +264,11 @@ function InvoicePaymentPanel({
 
   async function handleDelete(paymentId: string) {
     if (!confirm("Remove this payment record?")) return;
-    await deletePayment(paymentId);
+    await removePayment(paymentId);
   }
 
   function handleDownloadPDF() {
-    generateInvoicePDF(invoice, payments, settings);
+    downloadInvoicePdf(invoice, settings, payments);
   }
 
   return (
@@ -272,7 +284,7 @@ function InvoicePaymentPanel({
           <div>
             <h2 className="font-bold text-gray-900">{invoice.invoice_number}</h2>
             <p className="text-xs text-gray-500">
-              {(invoice.customer_snapshot as any)?.name || "—"}
+              {invoice.customer_snapshot?.name || "—"}
             </p>
           </div>
           <button
@@ -296,13 +308,13 @@ function InvoicePaymentPanel({
                 {fmt(summary.amountPaid)}
               </span>
             </div>
-            {summary.remaining > 0 && (
+            {summary.balance > 0 && (
               <div className="flex items-center justify-between border-t border-gray-200 pt-2 mt-2">
                 <span className="text-sm font-medium text-gray-700">
                   Balance Remaining
                 </span>
                 <span className="font-bold text-red-600">
-                  {fmt(summary.remaining)}
+                  {fmt(summary.balance)}
                 </span>
               </div>
             )}
@@ -340,7 +352,7 @@ function InvoicePaymentPanel({
               )}
             </div>
 
-            {loading ? (
+            {!ready ? (
               <div className="flex items-center justify-center py-6">
                 <Loader2 size={20} className="animate-spin text-gray-400" />
               </div>
@@ -395,22 +407,19 @@ function InvoicePaymentPanel({
 
 function InvoiceCard({
   invoice,
-  allPayments,
+  payments,
   onClick,
   onDelete,
-  settings,
 }: {
   invoice: Invoice;
-  allPayments: InvoicePayment[];
+  payments: InvoicePayment[];
   onClick: () => void;
   onDelete: () => void;
-  settings: any;
 }) {
-  const payments = allPayments.filter((p) => p.invoice_id === invoice.id);
   const summary = computeInvoicePaymentSummary(invoice.total, payments);
   const statusCfg = STATUS_CONFIG[summary.status];
   const StatusIcon = statusCfg.icon;
-  const snap = invoice.customer_snapshot as any;
+  const snap = invoice.customer_snapshot;
 
   return (
     <motion.div
@@ -453,7 +462,6 @@ function InvoiceCard({
           )}
           {invoice.due_date && (
             <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
-              <Calendar size={10} />
               Due {invoice.due_date}
             </p>
           )}
@@ -486,10 +494,10 @@ function InvoiceCard({
           <p className="text-xs text-gray-400">Balance</p>
           <p
             className={`text-sm font-bold ${
-              summary.remaining > 0 ? "text-red-600" : "text-gray-400"
+              summary.balance > 0 ? "text-red-600" : "text-gray-400"
             }`}
           >
-            {fmt(summary.remaining)}
+            {fmt(summary.balance)}
           </p>
         </div>
       </div>
@@ -499,31 +507,29 @@ function InvoiceCard({
 
 // ── Invoice Builder ───────────────────────────────────────────────────────────
 
-type LineItem = { description: string; quantity: number; unit_price: number };
-
 function InvoiceBuilder({
   seed,
   onSave,
   onCancel,
 }: {
   seed?: Partial<Invoice> & { lineItems?: LineItem[] };
-  onSave: (data: Omit<Invoice, "id" | "invoice_number" | "created_at" | "payment_status">) => Promise<string | null>;
+  onSave: (data: Omit<Invoice, "id" | "invoice_number" | "created_at" | "payment_status">) => Promise<void>;
   onCancel: () => void;
 }) {
   const { customers } = useCustomers();
 
   // Customer fields
   const [customerName, setCustomerName] = useState(
-    (seed?.customer_snapshot as any)?.name || ""
+    seed?.customer_snapshot?.name || ""
   );
   const [customerPhone, setCustomerPhone] = useState(
-    (seed?.customer_snapshot as any)?.phone || ""
+    seed?.customer_snapshot?.phone || ""
   );
   const [customerAddress, setCustomerAddress] = useState(
-    (seed?.customer_snapshot as any)?.address || ""
+    seed?.customer_snapshot?.address || ""
   );
-  const [customerId, setCustomerId] = useState<string | undefined>(
-    seed?.customer_id || undefined
+  const [customerId, setCustomerId] = useState<string | null>(
+    seed?.customer_id ?? null
   );
 
   // Invoice fields
@@ -536,11 +542,18 @@ function InvoiceBuilder({
   const [calloutAmount, setCalloutAmount] = useState(
     seed?.callout_fee_amount ?? 15
   );
-  const [lineItems, setLineItems] = useState<LineItem[]>(
-    seed?.lineItems && seed.lineItems.length > 0
-      ? seed.lineItems
-      : [emptyItem()]
-  );
+  // Seed line items may come as QuotationLineItem[] (from conversion) or LineItem[]
+  const [lineItems, setLineItems] = useState<LineItem[]>(() => {
+    if (seed?.lineItems && seed.lineItems.length > 0) return seed.lineItems;
+    if (seed?.line_items && seed.line_items.length > 0) {
+      return seed.line_items.map((i) => ({
+        description: i.description,
+        quantity: i.qty,
+        unit_price: i.unit_price,
+      }));
+    }
+    return [emptyItem()];
+  });
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -594,26 +607,31 @@ function InvoiceBuilder({
       return;
     }
     setSaving(true);
-    const err = await onSave({
-      customer_id: customerId,
-      customer_snapshot: {
-        name: customerName.trim(),
-        phone: customerPhone.trim(),
-        address: customerAddress.trim(),
-      },
-      quotation_id: seed?.quotation_id,
-      source_quote_id: seed?.source_quote_id,
-      line_items: validItems,
-      callout_fee_enabled: calloutEnabled,
-      callout_fee_amount: calloutAmount,
-      subtotal,
-      total,
-      issued_by: issuedBy.trim(),
-      remark: remark.trim() || undefined,
-      due_date: dueDate || undefined,
-    });
-    setSaving(false);
-    if (err) setError(err);
+    setError("");
+    try {
+      await onSave({
+        customer_id: customerId,
+        customer_snapshot: {
+          name: customerName.trim(),
+          phone: customerPhone.trim(),
+          address: customerAddress.trim(),
+        },
+        quotation_id: seed?.quotation_id ?? null,
+        source_quote_id: seed?.source_quote_id ?? null,
+        line_items: toQuotationLineItems(validItems),
+        callout_fee_enabled: calloutEnabled,
+        callout_fee_amount: calloutAmount,
+        subtotal,
+        total,
+        issued_by: issuedBy.trim(),
+        remark: remark.trim() || null,
+        due_date: dueDate || null,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save invoice");
+    } finally {
+      setSaving(false);
+    }
   }
 
   const filteredCustomers = customers.filter(
@@ -959,24 +977,14 @@ export function InvoiceAdmin({
 }: InvoiceAdminProps) {
   const {
     invoices,
-    loading,
+    ready,
     addInvoice,
-    updateInvoice,
-    deleteInvoice,
+    removeInvoice,
   } = useInvoices();
 
-  // We need all payments for the list view so each card can show its summary
-  // This is handled by useAllInvoicePayments inside useInvoices (see quotes-store)
-  // For simplicity here we'll use a flat array from a dedicated hook
-  const [allPayments, setAllPayments] = useState<InvoicePayment[]>([]);
+  const { paymentsByInvoice } = useAllInvoicePayments();
 
-  // Fetch all payments separately for card display
-  useEffect(() => {
-    // We expose this via the invoicePaymentsByInvoiceId map from useInvoices
-    // but here we'll flatten it for easy filtering
-  }, []);
-
-  const [view, setView] = useState<"list" | "builder" | "detail">("list");
+  const [view, setView] = useState<"list" | "builder">("list");
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [builderSeed, setBuilderSeed] = useState<
     (Partial<Invoice> & { lineItems?: LineItem[] }) | undefined
@@ -994,42 +1002,30 @@ export function InvoiceAdmin({
     }
   }, [convertSeed]);
 
-  // Get all payments for display — we use useAllInvoicePayments via a child or inline
-  // To keep it simple, we pass an empty array and let InvoiceCard handle it
-  // (each card could open a panel that loads payments) — or we can fetch all here
-  // For now allPayments is loaded in InvoiceCard via useInvoicePayments per invoice
-  // We use a dedicated hook exposed from the store that fetches all at once:
-  const { payments: allPmts } = useAllPaymentsHelper();
-
   async function handleSave(
     data: Omit<Invoice, "id" | "invoice_number" | "created_at" | "payment_status">
   ) {
-    const err = await addInvoice(data);
-    if (!err) {
-      setView("list");
-      setBuilderSeed(undefined);
-      onConvertDone?.();
-    }
-    return err;
+    await addInvoice(data);
+    setView("list");
+    setBuilderSeed(undefined);
+    onConvertDone?.();
   }
 
   async function handleDelete(id: string) {
     if (!confirm("Delete this invoice? This cannot be undone.")) return;
-    await deleteInvoice(id);
+    await removeInvoice(id);
   }
 
   const filtered = invoices.filter((inv) => {
-    const snap = inv.customer_snapshot as any;
+    const snap = inv.customer_snapshot;
+    const payments = paymentsByInvoice[inv.id] ?? [];
     const matchSearch =
       search.trim() === "" ||
       inv.invoice_number.toLowerCase().includes(search.toLowerCase()) ||
       (snap?.name || "").toLowerCase().includes(search.toLowerCase());
     const matchStatus =
       statusFilter === "all" ||
-      computeInvoicePaymentSummary(
-        inv.total,
-        allPmts.filter((p) => p.invoice_id === inv.id)
-      ).status === statusFilter;
+      computeInvoicePaymentSummary(inv.total, payments).status === statusFilter;
     return matchSearch && matchStatus;
   });
 
@@ -1109,7 +1105,7 @@ export function InvoiceAdmin({
       </div>
 
       {/* Invoice list */}
-      {loading ? (
+      {!ready ? (
         <div className="flex-1 flex items-center justify-center">
           <Loader2 size={24} className="animate-spin text-gray-400" />
         </div>
@@ -1132,10 +1128,9 @@ export function InvoiceAdmin({
               <InvoiceCard
                 key={inv.id}
                 invoice={inv}
-                allPayments={allPmts.filter((p) => p.invoice_id === inv.id)}
+                payments={paymentsByInvoice[inv.id] ?? []}
                 onClick={() => setSelectedInvoice(inv)}
                 onDelete={() => handleDelete(inv.id)}
-                settings={settings}
               />
             ))}
           </AnimatePresence>
@@ -1154,45 +1149,4 @@ export function InvoiceAdmin({
       </AnimatePresence>
     </div>
   );
-}
-
-// ── Small helper hook to fetch all payments across invoices ───────────────────
-// This is a thin wrapper — the real hook is useAllInvoicePayments in quotes-store
-
-function useAllPaymentsHelper() {
-  const [payments, setPayments] = useState<InvoicePayment[]>([]);
-
-  useEffect(() => {
-    const { supabase } = require("../lib/supabase");
-    supabase
-      .from("invoice_payments")
-      .select("*")
-      .order("paid_at", { ascending: true })
-      .then(({ data }: { data: InvoicePayment[] | null }) => {
-        if (data) setPayments(data);
-      });
-
-    const channel = supabase
-      .channel("all_invoice_payments")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "invoice_payments" },
-        () => {
-          supabase
-            .from("invoice_payments")
-            .select("*")
-            .order("paid_at", { ascending: true })
-            .then(({ data }: { data: InvoicePayment[] | null }) => {
-              if (data) setPayments(data);
-            });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
-  return { payments };
 }
