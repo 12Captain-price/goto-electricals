@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Plus, Trash2, Search, X, FileText, User, Phone,
   Loader2, ArrowLeft, AlertCircle, Save, Download,
@@ -570,6 +570,14 @@ export function InvoiceAdmin({ settings, convertSeed, onConvertDone }: InvoiceAd
   const [builderSeed, setBuilderSeed] = useState<(Partial<Invoice> & { lineItems?: LineItem[] }) | undefined>(convertSeed);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "unpaid" | "partially_paid" | "paid">("all");
+
+  // ── React to convertSeed changing (e.g. when parent switches tab + passes a new seed) ──
+  useEffect(() => {
+    if (convertSeed) {
+      setBuilderSeed(convertSeed);
+      setView("builder");
+    }
+  }, [convertSeed]);
 
   // Keep selectedInvoice in sync when invoices update (e.g. after adding a payment)
   const liveSelectedInvoice = selectedInvoice
