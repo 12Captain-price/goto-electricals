@@ -758,18 +758,41 @@ function OperationsModal({ service, onClose, onSave }: { service: Service; onClo
 const ICON_OPTIONS = ["Zap", "Building2", "Home", "Battery", "Sun", "LayoutDashboard", "Wrench", "Droplet", "ShieldCheck", "FileCheck", "Award", "Phone"];
 
 function ServicesAdmin({ data, update, showToast }: { data: ReturnType<typeof useSiteData>["data"]; update: ReturnType<typeof useSiteData>["update"]; showToast: (m: string) => void }) {
+  const [services, setServicesLocal] = useState<Service[]>(data.services);
   const [editing, setEditing] = useState<Service | null>(null);
-  const setServices = (services: Service[]) => update((p) => ({ ...p, services }));
-  const updateService = (id: string, patch: Partial<Service>) =>
-    setServices(data.services.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+
+  // Keep local state in sync when data changes from outside (e.g. realtime updates)
+  useEffect(() => { setServicesLocal(data.services); }, [data.services]);
+
+  const updateLocal = (id: string, patch: Partial<Service>) =>
+    setServicesLocal((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+
+  const saveService = (id: string, title: string) => {
+    // Save the current local services list (which has all unsaved edits) to the store
+    update((p) => ({ ...p, services }));
+    showToast(`"${title}" saved`);
+  };
+
   const removeService = (id: string) => {
-    setServices(data.services.filter((s) => s.id !== id));
+    const next = services.filter((s) => s.id !== id);
+    setServicesLocal(next);
+    update((p) => ({ ...p, services: next }));
     showToast("Service deleted");
   };
+
   const addService = () => {
     const id = `s${Date.now()}`;
-    setServices([...data.services, { id, icon: "Zap", title: "New Service", desc: "Describe this service.", operations: [] }]);
-    showToast("Service added — edit and save it");
+    const next = [...services, { id, icon: "Zap", title: "New Service", desc: "Describe this service.", operations: [] }];
+    setServicesLocal(next);
+    update((p) => ({ ...p, services: next }));
+    showToast("Service added — edit the details and save");
+  };
+
+  const saveOperations = (id: string, ops: ServiceOperation[]) => {
+    const next = services.map((s) => (s.id === id ? { ...s, operations: ops } : s));
+    setServicesLocal(next);
+    update((p) => ({ ...p, services: next }));
+    showToast("Operations updated");
   };
 
   return (
@@ -779,22 +802,22 @@ function ServicesAdmin({ data, update, showToast }: { data: ReturnType<typeof us
         Add, edit or remove services. Use "View / Edit Operations" to manage operations and pricing shown on the public site.
       </p>
       <div className="grid gap-4 md:grid-cols-2">
-        {data.services.map((s) => (
+        {services.map((s) => (
           <div key={s.id} className="rounded-2xl border border-white/10 bg-[#161b22] p-5">
             <div className="space-y-2">
               <div>
                 <label className="mb-1 block font-mono text-[9px] uppercase tracking-[0.15em] text-white/30">Icon</label>
-                <select value={s.icon} onChange={(e) => updateService(s.id, { icon: e.target.value })} className={`${inputCls} cursor-pointer`}>
+                <select value={s.icon} onChange={(e) => updateLocal(s.id, { icon: e.target.value })} className={`${inputCls} cursor-pointer`}>
                   {ICON_OPTIONS.map((ico) => <option key={ico} value={ico}>{ico}</option>)}
                 </select>
               </div>
               <div>
                 <label className="mb-1 block font-mono text-[9px] uppercase tracking-[0.15em] text-white/30">Title</label>
-                <input value={s.title} onChange={(e) => updateService(s.id, { title: e.target.value })} className={inputCls} placeholder="Service title" />
+                <input value={s.title} onChange={(e) => updateLocal(s.id, { title: e.target.value })} className={inputCls} placeholder="Service title" />
               </div>
               <div>
                 <label className="mb-1 block font-mono text-[9px] uppercase tracking-[0.15em] text-white/30">Description</label>
-                <textarea value={s.desc} onChange={(e) => updateService(s.id, { desc: e.target.value })} rows={2} className={inputCls} placeholder="Short description" />
+                <textarea value={s.desc} onChange={(e) => updateLocal(s.id, { desc: e.target.value })} rows={2} className={inputCls} placeholder="Short description" />
               </div>
             </div>
             <div className="mt-3 flex items-center justify-between">
@@ -806,7 +829,7 @@ function ServicesAdmin({ data, update, showToast }: { data: ReturnType<typeof us
               </button>
             </div>
             <div className="mt-3 flex gap-2">
-              <button onClick={() => { update((p) => ({ ...p, services: data.services })); showToast(`"${s.title}" saved`); }} className="flex flex-1 items-center justify-center gap-1 rounded-full bg-[#f97316] px-4 py-2 text-xs font-semibold text-black hover:bg-orange-400">
+              <button onClick={() => saveService(s.id, s.title)} className="flex flex-1 items-center justify-center gap-1 rounded-full bg-[#f97316] px-4 py-2 text-xs font-semibold text-black hover:bg-orange-400">
                 <Save className="h-3 w-3" /> Save
               </button>
               <button onClick={() => removeService(s.id)} className="flex items-center gap-1 rounded-full border border-[#ef4444]/40 px-4 py-2 text-xs text-[#ef4444] hover:bg-red-500/10">
@@ -823,7 +846,7 @@ function ServicesAdmin({ data, update, showToast }: { data: ReturnType<typeof us
         <OperationsModal
           service={editing}
           onClose={() => setEditing(null)}
-          onSave={(ops) => { updateService(editing.id, { operations: ops }); showToast("Operations updated"); }}
+          onSave={(ops) => { saveOperations(editing.id, ops); setEditing(null); }}
         />
       )}
     </div>
