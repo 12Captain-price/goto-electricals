@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "./supabase";
 
 export type ServiceOperation = {
@@ -112,27 +112,9 @@ export const DEFAULT_DATA: SiteData = {
 
 const DB_KEY = "main";
 
-function mergeWithDefaults(value: any): SiteData {
-  return {
-    ...DEFAULT_DATA,
-    ...value,
-    contact: { ...DEFAULT_DATA.contact, ...(value?.contact ?? {}) },
-  };
-}
-
 export function useSiteData() {
   const [data, setData] = useState<SiteData>(DEFAULT_DATA);
   const [ready, setReady] = useState(false);
-
-  // Always-current snapshot of data, independent of render timing.
-  // update() reads from this instead of the `data` closure so it can
-  // never write a stale version on top of a newer one.
-  const dataRef = useRef<SiteData>(DEFAULT_DATA);
-
-  const applyData = (value: SiteData) => {
-    dataRef.current = value;
-    setData(value);
-  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -143,9 +125,9 @@ export function useSiteData() {
         .single();
 
       if (error || !row) {
-        applyData(DEFAULT_DATA);
+        setData(DEFAULT_DATA);
       } else {
-        applyData(mergeWithDefaults(row.value));
+        setData({ ...DEFAULT_DATA, ...row.value, contact: { ...DEFAULT_DATA.contact, ...(row.value as any).contact } });
       }
       setReady(true);
     };
@@ -159,7 +141,8 @@ export function useSiteData() {
         { event: "*", schema: "public", table: "site_data" },
         (payload) => {
           if (payload.new && "value" in payload.new) {
-            applyData(mergeWithDefaults((payload.new as any).value));
+            const v = (payload.new as any).value;
+            setData({ ...DEFAULT_DATA, ...v, contact: { ...DEFAULT_DATA.contact, ...v.contact } });
           }
         }
       )
@@ -171,27 +154,11 @@ export function useSiteData() {
   }, []);
 
   const update = async (next: SiteData | ((prev: SiteData) => SiteData)) => {
-    // Use the ref (always current), never the `data` from this render's
-    // closure — that's what let stale writes clobber newer ones before.
-    const value =
-      typeof next === "function"
-        ? (next as (p: SiteData) => SiteData)(dataRef.current)
-        : next;
-
-    // Apply locally immediately (optimistic update) so the UI feels instant.
-    applyData(value);
-
-    const { error } = await supabase
+    const value = typeof next === "function" ? (next as (p: SiteData) => SiteData)(data) : next;
+    setData(value);
+    await supabase
       .from("site_data")
       .upsert({ key: DB_KEY, value });
-
-    if (error) {
-      // Don't swallow this — the caller needs to know the save failed
-      // so it can show a toast and/or retry, instead of believing
-      // it persisted when it didn't.
-      console.error("Failed to save site data:", error);
-      throw error;
-    }
   };
 
   return { data, update, ready };
