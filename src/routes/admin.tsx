@@ -758,39 +758,51 @@ function OperationsModal({ service, onClose, onSave }: { service: Service; onClo
 const ICON_OPTIONS = ["Zap", "Building2", "Home", "Battery", "Sun", "LayoutDashboard", "Wrench", "Droplet", "ShieldCheck", "FileCheck", "Award", "Phone"];
 
 function ServicesAdmin({ data, update, showToast }: { data: ReturnType<typeof useSiteData>["data"]; update: ReturnType<typeof useSiteData>["update"]; showToast: (m: string) => void }) {
-  const [localServices, setLocalServices] = useState<Service[]>(data.services);
+  const [localServices, setLocalServices] = useState<Service[]>(() => data.services);
   const [editing, setEditing] = useState<Service | null>(null);
+  const [initialized, setInitialized] = useState(false);
 
-  // Sync if parent data changes (e.g. on initial load)
-  useEffect(() => { setLocalServices(data.services); }, [data.services.length]);
+  // Only sync from parent once on initial Supabase load, never again
+  useEffect(() => {
+    if (!initialized && data.services.length > 0) {
+      setLocalServices(data.services);
+      setInitialized(true);
+    }
+  }, [data.services, initialized]);
 
   const updateService = (id: string, patch: Partial<Service>) =>
     setLocalServices((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
 
   const removeService = (id: string) => {
-    const next = localServices.filter((s) => s.id !== id);
-    setLocalServices(next);
-    update((p) => ({ ...p, services: next }));
+    setLocalServices((prev) => {
+      const next = prev.filter((s) => s.id !== id);
+      update((p) => ({ ...p, services: next }));
+      return next;
+    });
     showToast("Service deleted");
   };
 
   const addService = () => {
-    const id = `s${Date.now()}`;
-    const newService: Service = { id, icon: "Zap", title: "New Service", desc: "Describe this service.", operations: [] };
+    const newService: Service = { id: `s${Date.now()}`, icon: "Zap", title: "New Service", desc: "Describe this service.", operations: [] };
     setLocalServices((prev) => [...prev, newService]);
     showToast("Service added — edit and save it");
   };
 
-  const saveAll = () => {
-    update((p) => ({ ...p, services: localServices }));
-    showToast("All services saved");
+  const saveOne = (id: string) => {
+    setLocalServices((prev) => {
+      update((p) => ({ ...p, services: prev }));
+      const svc = prev.find((s) => s.id === id);
+      if (svc) setTimeout(() => showToast(`"${svc.title}" saved`), 0);
+      return prev;
+    });
   };
 
-  const saveOne = (s: Service) => {
-    const next = localServices.map((x) => (x.id === s.id ? s : x));
-    setLocalServices(next);
-    update((p) => ({ ...p, services: next }));
-    showToast(`"${s.title}" saved`);
+  const saveAll = () => {
+    setLocalServices((prev) => {
+      update((p) => ({ ...p, services: prev }));
+      setTimeout(() => showToast("All services saved"), 0);
+      return prev;
+    });
   };
 
   return (
@@ -832,7 +844,7 @@ function ServicesAdmin({ data, update, showToast }: { data: ReturnType<typeof us
               </button>
             </div>
             <div className="mt-3 flex gap-2">
-              <button onClick={() => saveOne(s)} className="flex flex-1 items-center justify-center gap-1 rounded-full bg-[#f97316] px-4 py-2 text-xs font-semibold text-black hover:bg-orange-400">
+              <button onClick={() => saveOne(s.id)} className="flex flex-1 items-center justify-center gap-1 rounded-full bg-[#f97316] px-4 py-2 text-xs font-semibold text-black hover:bg-orange-400">
                 <Save className="h-3 w-3" /> Save
               </button>
               <button onClick={() => removeService(s.id)} className="flex items-center gap-1 rounded-full border border-[#ef4444]/40 px-4 py-2 text-xs text-[#ef4444] hover:bg-red-500/10">
