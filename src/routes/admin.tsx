@@ -54,7 +54,7 @@ function Login({ onAuth }: { onAuth: () => void }) {
       <form onSubmit={submit} className="mx-auto mt-32 max-w-sm rounded-2xl border border-white/10 bg-[#161b22] p-8">
         <ShieldCheck className="mx-auto mb-4 h-10 w-10 text-[#f97316]" />
         <h1 className="text-center font-display text-xl font-bold text-white">Admin Access</h1>
-        <p className="mb-8 text-center font-mono text-sm text-white/40">Gow Toy Electricals — Manager Portal</p>
+        <p className="mb-8 text-center font-mono text-sm text-white/40">Gocol Electricals — Manager Portal</p>
         <div className="relative">
           <input
             type={show ? "text" : "password"}
@@ -122,7 +122,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
     <div className="min-h-screen bg-[#0d1117] text-[#f0f6fc]">
       <aside className="fixed top-0 left-0 flex h-screen w-64 flex-col border-r border-white/10 bg-[#161b22] p-5 overflow-y-auto">
         <div className="mb-8 font-display text-lg font-bold">
-          <span className="text-[#f97316]">GOW TO</span> <span className="text-white">ADMIN</span>
+          <span className="text-[#f97316]">GOCOL</span> <span className="text-white">ADMIN</span>
         </div>
         <nav className="flex-1 space-y-1">
           {nav.map((n) => (
