@@ -758,66 +758,28 @@ function OperationsModal({ service, onClose, onSave }: { service: Service; onClo
 const ICON_OPTIONS = ["Zap", "Building2", "Home", "Battery", "Sun", "LayoutDashboard", "Wrench", "Droplet", "ShieldCheck", "FileCheck", "Award", "Phone"];
 
 function ServicesAdmin({ data, update, showToast }: { data: ReturnType<typeof useSiteData>["data"]; update: ReturnType<typeof useSiteData>["update"]; showToast: (m: string) => void }) {
-  const [localServices, setLocalServices] = useState<Service[]>(() => data.services);
   const [editing, setEditing] = useState<Service | null>(null);
-  const [initialized, setInitialized] = useState(false);
-
-  // Only sync from parent once on initial Supabase load, never again
-  useEffect(() => {
-    if (!initialized && data.services.length > 0) {
-      setLocalServices(data.services);
-      setInitialized(true);
-    }
-  }, [data.services, initialized]);
-
+  const setServices = (services: Service[]) => update((p) => ({ ...p, services }));
   const updateService = (id: string, patch: Partial<Service>) =>
-    setLocalServices((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
-
+    setServices(data.services.map((s) => (s.id === id ? { ...s, ...patch } : s)));
   const removeService = (id: string) => {
-    setLocalServices((prev) => {
-      const next = prev.filter((s) => s.id !== id);
-      update((p) => ({ ...p, services: next }));
-      return next;
-    });
+    setServices(data.services.filter((s) => s.id !== id));
     showToast("Service deleted");
   };
-
   const addService = () => {
-    const newService: Service = { id: `s${Date.now()}`, icon: "Zap", title: "New Service", desc: "Describe this service.", operations: [] };
-    setLocalServices((prev) => [...prev, newService]);
+    const id = `s${Date.now()}`;
+    setServices([...data.services, { id, icon: "Zap", title: "New Service", desc: "Describe this service.", operations: [] }]);
     showToast("Service added — edit and save it");
-  };
-
-  const saveOne = (id: string) => {
-    setLocalServices((prev) => {
-      update((p) => ({ ...p, services: prev }));
-      const svc = prev.find((s) => s.id === id);
-      if (svc) setTimeout(() => showToast(`"${svc.title}" saved`), 0);
-      return prev;
-    });
-  };
-
-  const saveAll = () => {
-    setLocalServices((prev) => {
-      update((p) => ({ ...p, services: prev }));
-      setTimeout(() => showToast("All services saved"), 0);
-      return prev;
-    });
   };
 
   return (
     <div>
-      <div className="mb-8 flex items-center justify-between">
-        <h1 className="font-display text-2xl font-bold">Services</h1>
-        <button onClick={saveAll} className="flex items-center gap-2 rounded-full bg-[#f97316] px-5 py-2 text-sm font-semibold text-black hover:bg-orange-400">
-          <Save className="h-4 w-4" /> Save All
-        </button>
-      </div>
+      <SectionTitle>Services</SectionTitle>
       <p className="mb-6 max-w-2xl text-sm text-white/60">
         Add, edit or remove services. Use "View / Edit Operations" to manage operations and pricing shown on the public site.
       </p>
       <div className="grid gap-4 md:grid-cols-2">
-        {localServices.map((s) => (
+        {data.services.map((s) => (
           <div key={s.id} className="rounded-2xl border border-white/10 bg-[#161b22] p-5">
             <div className="space-y-2">
               <div>
@@ -844,7 +806,7 @@ function ServicesAdmin({ data, update, showToast }: { data: ReturnType<typeof us
               </button>
             </div>
             <div className="mt-3 flex gap-2">
-              <button onClick={() => saveOne(s.id)} className="flex flex-1 items-center justify-center gap-1 rounded-full bg-[#f97316] px-4 py-2 text-xs font-semibold text-black hover:bg-orange-400">
+              <button onClick={() => { update((p) => ({ ...p, services: data.services })); showToast(`"${s.title}" saved`); }} className="flex flex-1 items-center justify-center gap-1 rounded-full bg-[#f97316] px-4 py-2 text-xs font-semibold text-black hover:bg-orange-400">
                 <Save className="h-3 w-3" /> Save
               </button>
               <button onClick={() => removeService(s.id)} className="flex items-center gap-1 rounded-full border border-[#ef4444]/40 px-4 py-2 text-xs text-[#ef4444] hover:bg-red-500/10">
@@ -861,10 +823,7 @@ function ServicesAdmin({ data, update, showToast }: { data: ReturnType<typeof us
         <OperationsModal
           service={editing}
           onClose={() => setEditing(null)}
-          onSave={(ops) => {
-            updateService(editing.id, { operations: ops });
-            showToast("Operations updated");
-          }}
+          onSave={(ops) => { updateService(editing.id, { operations: ops }); showToast("Operations updated"); }}
         />
       )}
     </div>
