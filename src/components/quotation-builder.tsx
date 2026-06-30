@@ -382,13 +382,25 @@ function QuotationBuilder({ companyDefaultFee, onClose, onSaved, seed }: {
 
 // ── Quotation Card ──
 
-function QuotationCard({ q, contact, defaultCalloutFee, onDuplicate, onConvertToInvoice }: {
+function QuotationCard({ q, contact, defaultCalloutFee, onDuplicate, onConvertToInvoice, onDelete }: {
   q: Quotation;
   contact: ContactInfo;
   defaultCalloutFee: number;
   onDuplicate: (seed: BuilderSeed) => void;
   onConvertToInvoice: (seed: InvoiceSeed) => void;
+  onDelete: (id: string) => void;
 }) {
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await onDelete(q.id);
+    } finally {
+      setDeleting(false);
+    }
+  };
   const [downloading, setDownloading] = useState(false);
   const [dlErr, setDlErr] = useState<string | null>(null);
   const date = new Date(q.created_at);
@@ -501,7 +513,36 @@ function QuotationCard({ q, contact, defaultCalloutFee, onDuplicate, onConvertTo
         >
           <Receipt className="h-4 w-4" />
         </button>
+        <button
+          onClick={() => setConfirming(true)}
+          title="Delete quotation"
+          aria-label="Delete quotation"
+          className="flex items-center justify-center gap-2 rounded-full border border-[#ef4444]/40 px-4 py-2.5 text-sm font-semibold text-[#ef4444] hover:bg-red-500/10"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
       </div>
+
+      {confirming && (
+        <div className="mt-3 flex items-center justify-between gap-2 rounded-xl border border-[#ef4444]/30 bg-red-500/10 px-3 py-2.5 text-xs text-red-300">
+          <span>Delete this quotation?</span>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setConfirming(false)}
+              className="rounded-full border border-white/15 px-3 py-1 text-white/60 hover:text-white"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="flex items-center gap-1 rounded-full bg-[#ef4444] px-3 py-1 font-semibold text-white hover:bg-red-500 disabled:opacity-60"
+            >
+              {deleting ? <Loader2 className="h-3 w-3 animate-spin" /> : "Delete"}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -521,7 +562,7 @@ export function QuotationsAdmin({
   onSeedConsumed?: () => void;
   onConvertToInvoice: (seed: InvoiceSeed) => void;
 }) {
-  const { quotations, ready } = useQuotations();
+  const { quotations, ready, removeQuotation } = useQuotations();
   const [view, setView] = useState<"list" | "builder">("list");
   const [builderSeed, setBuilderSeed] = useState<BuilderSeed | undefined>(undefined);
 
@@ -588,6 +629,7 @@ export function QuotationsAdmin({
               defaultCalloutFee={defaultCalloutFee}
               onDuplicate={(seed) => openBuilder(seed)}
               onConvertToInvoice={onConvertToInvoice}
+              onDelete={removeQuotation}
             />
           ))}
         </div>
