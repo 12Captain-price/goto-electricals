@@ -152,7 +152,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
         {tab === "customers" && <CustomersAdmin showToast={showToast} />}
         {tab === "quotations" && (
           <QuotationsAdmin
-            defaultCalloutFee={15}
+            defaultCalloutFee={data.contact.calloutFee}
             contact={data.contact}
             incomingSeed={pendingSeed}
             onSeedConsumed={() => setPendingSeed(undefined)}
@@ -1049,7 +1049,6 @@ function TestimonialsAdmin({ data, update, showToast }: { data: ReturnType<typeo
     </div>
   );
 }
-
 function ContactAdmin({ data, update, showToast }: { data: ReturnType<typeof useSiteData>["data"]; update: ReturnType<typeof useSiteData>["update"]; showToast: (m: string) => void }) {
   const [form, setForm] = useState(data.contact);
   const save = () => { update((p) => ({ ...p, contact: form })); showToast("Contact info saved"); };
@@ -1069,9 +1068,21 @@ function ContactAdmin({ data, update, showToast }: { data: ReturnType<typeof use
         {fields.map((f) => (
           <div key={f.key}>
             <label className="mb-2 block font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">{f.label}</label>
-            <input value={form[f.key]} onChange={(e) => setForm({ ...form, [f.key]: e.target.value })} className={inputCls} />
+            <input value={form[f.key] as string} onChange={(e) => setForm({ ...form, [f.key]: e.target.value })} className={inputCls} />
           </div>
         ))}
+        <div>
+          <label className="mb-2 block font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">Call-Out Fee ($)</label>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={form.calloutFee}
+            onChange={(e) => setForm({ ...form, calloutFee: parseFloat(e.target.value) || 0 })}
+            className={inputCls}
+          />
+          <p className="mt-1.5 text-xs text-white/40">Changes here update the public site, quotations, and invoices everywhere the call-out fee appears.</p>
+        </div>
         <button onClick={save} className="flex items-center gap-2 rounded-full bg-[#f97316] px-5 py-2 text-sm font-semibold text-black hover:bg-orange-400"><Save className="h-4 w-4" /> Save</button>
       </div>
     </div>

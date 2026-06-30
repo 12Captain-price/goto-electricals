@@ -150,7 +150,7 @@ function Hero({ slides }: { slides: HeroSlide[] }) {
   );
 }
 
-function ServiceModal({ service, onClose }: { service: Service; onClose: () => void }) {
+function ServiceModal({ service, onClose, calloutFee }: { service: Service; onClose: () => void; calloutFee: number }) {
   const Icon = ICON_MAP[service.icon] ?? Zap;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -177,7 +177,7 @@ function ServiceModal({ service, onClose }: { service: Service; onClose: () => v
         <div className="mb-5 flex items-start gap-3 rounded-xl border border-[#f97316]/40 bg-[#f97316]/[0.06] p-3">
           <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#f97316]" />
           <p className="text-xs text-white/70">
-            <span className="font-semibold text-white">$15 fixed call-out fee</span> applies before any work begins. Covers site assessment and fault diagnosis.
+            <span className="font-semibold text-white">${calloutFee} fixed call-out fee</span> applies before any work begins. Covers site assessment and fault diagnosis.
           </p>
         </div>
 
@@ -226,7 +226,7 @@ const cardAnim = (i: number) => ({
   transition: { duration: 0.5, delay: i * 0.06 },
 });
 
-function Services({ services }: { services: Service[] }) {
+function Services({ services, calloutFee }: { services: Service[]; calloutFee: number }) {
   const [selected, setSelected] = useState<Service | null>(null);
   return (
     <section id="services" className="mx-auto max-w-6xl px-6 py-24">
@@ -254,7 +254,7 @@ function Services({ services }: { services: Service[] }) {
           );
         })}
       </div>
-      {selected && <ServiceModal service={selected} onClose={() => setSelected(null)} />}
+      {selected && <ServiceModal service={selected} onClose={() => setSelected(null)} calloutFee={calloutFee} />}
     </section>
   );
 }
@@ -547,8 +547,8 @@ function Contact({ contact }: { contact: ReturnType<typeof useSiteData>["data"][
 
   const handleSend = async () => {
     await saveQuote("whatsapp");
-
-    const body = `*New Quote Request — Gocol Electricals*\n\n*Service:* ${service}\n*Name:* ${name}\n*Phone:* ${phone}\n*Location:* ${location || "Not provided"}\n*Message:* ${message || "—"}\n\nNote: A $15 fixed call-out fee applies before work begins — covers site visit, assessment & fault diagnosis.`;
+const body = `*New Quote Request — Gocol Electricals*\n\n*Service:* ${service}\n*Name:* ${name}\n*Phone:* ${phone}\n*Location:* ${location || "Not provided"}\n*Message:* ${message || "—"}\n\nNote: A $${contact.calloutFee} fixed call-out fee applies before work begins — covers site visit, assessment & fault diagnosis.`;
+    
     window.open(`https://wa.me/${contact.whatsapp}?text=${encodeURIComponent(body)}`, "_blank");
     setSent(true);
     setTimeout(() => {
@@ -561,7 +561,7 @@ function Contact({ contact }: { contact: ReturnType<typeof useSiteData>["data"][
     await saveQuote("email");
 
     const subject = encodeURIComponent(`Quote Request — ${name} — ${service}`);
-    const body = encodeURIComponent(`Hi,\n\nService: ${service}\nName: ${name}\nPhone: ${phone}\nLocation: ${location || "Not provided"}\n\n${message}\n\nNote: A $15 fixed call-out fee applies before work begins — covers site visit, assessment & fault diagnosis.`);
+    const body = encodeURIComponent(`Hi,\n\nService: ${service}\nName: ${name}\nPhone: ${phone}\nLocation: ${location || "Not provided"}\n\n${message}\n\nNote: A $${contact.calloutFee} fixed call-out fee applies before work begins — covers site visit, assessment & fault diagnosis.`);
     window.open(`mailto:${contact.email}?subject=${subject}&body=${body}`, "_blank");
   };
 
@@ -579,8 +579,8 @@ function Contact({ contact }: { contact: ReturnType<typeof useSiteData>["data"][
         </div>
         <div className="flex flex-col gap-1 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="font-display text-2xl font-bold text-white">
-              $15 Fixed Call-Out Fee
+           <p className="font-display text-2xl font-bold text-white">
+              ${contact.calloutFee} Fixed Call-Out Fee
             </p>
             <p className="mt-1 text-sm text-white/60">
               Applies before any work begins — covers site visit, assessment &amp; fault diagnosis.
@@ -588,7 +588,8 @@ function Contact({ contact }: { contact: ReturnType<typeof useSiteData>["data"][
           </div>
           <div className="mt-3 shrink-0 rounded-xl border border-[#f97316]/30 bg-[#f97316]/10 px-5 py-3 text-center sm:mt-0">
             <div className="font-mono text-[10px] uppercase tracking-wider text-[#f97316]/70">All jobs</div>
-            <div className="font-display text-3xl font-bold text-[#f97316]">$15</div>
+           
+            <div className="font-display text-3xl font-bold text-[#f97316]">${contact.calloutFee}</div>
             <div className="font-mono text-[10px] uppercase tracking-wider text-white/40">call-out</div>
           </div>
         </div>
@@ -985,7 +986,7 @@ function Index() {
       <Navbar />
       <main>
         <Hero slides={data.heroSlides} />
-        <Services services={data.services} />
+        <Services services={data.services} calloutFee={data.contact.calloutFee} />
         <About stats={data.stats} />
         <Portfolio projects={data.projects} />
         <Certificates certificates={data.certificates} />

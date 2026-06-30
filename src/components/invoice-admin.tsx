@@ -314,10 +314,11 @@ function InvoiceCard({ invoice, onClick, onDelete }: {
 
 // ── Invoice Builder ──
 
-function InvoiceBuilder({ seed, onSave, onCancel }: {
+function InvoiceBuilder({ seed, onSave, onCancel, settings }: {
   seed?: Partial<Invoice> & { lineItems?: LineItem[] };
   onSave: (data: Omit<Invoice, "id" | "invoice_number" | "created_at" | "payment_status" | "payments">) => Promise<void>;
   onCancel: () => void;
+  settings?: { calloutFee?: number };
 }) {
   const { customers } = useCustomers();
   const [customerName, setCustomerName] = useState(seed?.customer_snapshot?.name || "");
@@ -330,7 +331,7 @@ function InvoiceBuilder({ seed, onSave, onCancel }: {
   const [remark, setRemark] = useState(seed?.remark || "");
   const [dueDate, setDueDate] = useState(seed?.due_date || "");
   const [calloutEnabled, setCalloutEnabled] = useState(seed?.callout_fee_enabled ?? true);
-  const [calloutAmount, setCalloutAmount] = useState(seed?.callout_fee_amount ?? 15);
+  const [calloutAmount, setCalloutAmount] = useState(seed?.callout_fee_amount ?? settings?.calloutFee ?? 15);
   const [lineItems, setLineItems] = useState<LineItem[]>(() => {
     if (seed?.lineItems && seed.lineItems.length > 0) return seed.lineItems;
     if (seed?.line_items && seed.line_items.length > 0)
@@ -606,8 +607,8 @@ export function InvoiceAdmin({ settings, convertSeed, onConvertDone }: InvoiceAd
     return matchSearch && matchStatus;
   });
 
-  if (view === "builder") {
-    return <InvoiceBuilder seed={builderSeed} onSave={handleSave} onCancel={() => { setView("list"); setBuilderSeed(undefined); onConvertDone?.(); }} />;
+ if (view === "builder") {
+    return <InvoiceBuilder seed={builderSeed} onSave={handleSave} onCancel={() => { setView("list"); setBuilderSeed(undefined); onConvertDone?.(); }} settings={settings} />;
   }
 
   return (

@@ -39,6 +39,7 @@ export type ContactInfo = {
   hours: string;
   vat: string;
   tin: string;
+  calloutFee: number;
 };
 
 export type Stats = {
@@ -95,7 +96,7 @@ export const DEFAULT_DATA: SiteData = {
     { id: "t2", name: "[Client Name]", suburb: "Suburb, Bulawayo", quote: "Add your testimonial here." },
     { id: "t3", name: "[Client Name]", suburb: "Suburb, Bulawayo", quote: "Add your testimonial here." },
   ],
-  contact: {
+ contact: {
     phone: "+263 778 687 510",
     whatsapp: "263778687510",
     email: "info@gotoelectricals.co.zw",
@@ -103,6 +104,7 @@ export const DEFAULT_DATA: SiteData = {
     hours: "Mon–Fri 7am–6pm · 24/7 Emergency Callouts",
     vat: "",
     tin: "",
+    calloutFee: 15,
   },
   stats: { years: "6", projects: "150", clients: "120" },
   heroSlides: [],
