@@ -94,7 +94,7 @@ export async function downloadInvoicePdf(
   pdf.setTextColor(...dark);
   pdf.text(`Invoice No: ${invoice.invoice_number}`, rightX, 51, { align: "right" });
   pdf.text(`Date: ${new Date(invoice.created_at).toLocaleDateString()}`, rightX, 57, { align: "right" });
-  if (invoice.due_date) { pdf.text(`Due: ${new Date(invoice.due_date).toLocaleDateString()}`, rightX, 63, { align: "right" }); }
+  if (invoice.due_date) { pdf.text(`Due: ${new Date(invoice.due_date).toLocaleDateString("en-GB")}`, rightX, 63, { align: "right" }); }
 
   y = Math.max(y, invoice.due_date ? 68 : 62);
 
@@ -296,7 +296,7 @@ export async function downloadInvoicePdf(
     payments.forEach((p) => {
       checkPage(6);
       const methodLabel = PAYMENT_METHOD_LABELS[p.method as PaymentMethod] ?? p.method;
-      const line = `${new Date(p.paid_at).toLocaleDateString()} — ${fmt(p.amount)} — ${methodLabel}${p.note ? ` — ${p.note}` : ""}`;
+      const line = `${new Date(p.paid_at).toLocaleDateString("en-GB")} — ${fmt(p.amount)} — ${methodLabel}${p.note ? ` — ${p.note}` : ""}`;
       pdf.setTextColor(...dark);
       pdf.text(line, margin, y);
       y += 5;
@@ -325,7 +325,7 @@ export async function downloadInvoicePdf(
   pdf.setFont("helvetica", "normal");
   pdf.setFontSize(9);
   pdf.setTextColor(...muted);
-  pdf.text(new Date(invoice.created_at).toLocaleDateString(), margin, y);
+  pdf.text(new Date(invoice.created_at).toLocaleDateString("en-GB"), margin, y);
 
   pdf.setDrawColor(...dark);
   pdf.line(rightX - 60, y + 2, rightX, y + 2);
