@@ -5,8 +5,8 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  useQuotations, useCustomers, computeQuotationTotals,
-  type Quotation, type QuotationLineItem, type Customer,
+  useQuotations, useCustomers, computeQuotationTotals, formatMoney, convertFromUsd,
+  type Quotation, type QuotationLineItem, type Customer, type Currency,
 } from "@/lib/quotes-store";
 import { downloadQuotationPdf } from "@/components/quotation-pdf";
 import type { ContactInfo } from "@/lib/site-store";
@@ -106,6 +106,8 @@ export type BuilderSeed = {
   clientTin?: string;
   items: QuotationLineItem[];
   calloutEnabled: boolean;
+  currency?: Currency;
+  zigRate?: number;
   issuedBy: string;
   remark: string;
 };
@@ -122,14 +124,17 @@ export type InvoiceSeed = {
   lineItems: { description: string; quantity: number; unit_price: number }[];
   calloutEnabled: boolean;
   calloutAmount: number;
+  currency?: Currency;
+  zigRate?: number;
   issuedBy: string;
   remark?: string;
 };
 
 // ── Builder ──
 
-function QuotationBuilder({ companyDefaultFee, onClose, onSaved, seed }: {
+function QuotationBuilder({ companyDefaultFee, defaultZigRate, onClose, onSaved, seed }: {
   companyDefaultFee: number;
+  defaultZigRate: number;
   onClose: () => void;
   onSaved: () => void;
   seed?: BuilderSeed;
@@ -145,6 +150,8 @@ function QuotationBuilder({ companyDefaultFee, onClose, onSaved, seed }: {
   const [clientTin, setClientTin] = useState(seed?.clientTin ?? "");
   const [items, setItems] = useState<QuotationLineItem[]>(seed?.items ?? []);
   const [calloutEnabled, setCalloutEnabled] = useState(seed?.calloutEnabled ?? true);
+  const [currency, setCurrency] = useState<Currency>(seed?.currency ?? "USD");
+  const [zigRate, setZigRate] = useState<number>(seed?.zigRate ?? defaultZigRate);
   const [issuedBy, setIssuedBy] = useState(seed?.issuedBy ?? "");
   const [remark, setRemark] = useState(seed?.remark ?? "");
   const [saving, setSaving] = useState(false);
@@ -153,7 +160,12 @@ function QuotationBuilder({ companyDefaultFee, onClose, onSaved, seed }: {
   const isDuplicate = !!seed && seed.items.length > 0;
   const isConvert = !!seed && seed.items.length === 0;
 
-  const { subtotal, total } = computeQuotationTotals(items, calloutEnabled, companyDefaultFee);
+  // Line item prices are always entered in USD. When ZiG is the document
+  // currency, everything below is converted using the exchange rate.
+  const { subtotal: subtotalUsd, total: totalUsd } = computeQuotationTotals(items, calloutEnabled, companyDefaultFee);
+  const subtotal = convertFromUsd(subtotalUsd, currency, zigRate);
+  const total = convertFromUsd(totalUsd, currency, zigRate);
+  const calloutFeeDisplay = convertFromUsd(companyDefaultFee, currency, zigRate);
 
   const handleSelectCustomer = (c: Customer) => {
     setSelectedCustomer(c);
@@ -197,9 +209,11 @@ function QuotationBuilder({ companyDefaultFee, onClose, onSaved, seed }: {
         source_quote_id: null,
         line_items: items,
         callout_fee_enabled: calloutEnabled,
-        callout_fee_amount: companyDefaultFee,
+        callout_fee_amount: calloutFeeDisplay,
         subtotal,
         total,
+        currency,
+        exchange_rate: currency === "ZIG" ? zigRate : null,
         issued_by: issuedBy.trim(),
         remark: remark.trim() || null,
       });
@@ -284,10 +298,10 @@ function QuotationBuilder({ companyDefaultFee, onClose, onSaved, seed }: {
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block font-mono text-[9px] uppercase tracking-[0.15em] text-white/30">Unit Price ($)</label>
+                  <label className="mb-1 block font-mono text-[9px] uppercase tracking-[0.15em] text-white/30">Unit Price (USD)</label>
                   <input
                     type="number"
-                    value={item.unit_price}
+                    value={item.unit_price === 0 ? "" : item.unit_price}
                     onChange={(e) => updateLineItem(idx, { unit_price: parseFloat(e.target.value) || 0 })}
                     placeholder="0.00"
                     className={inputCls}
@@ -297,7 +311,7 @@ function QuotationBuilder({ companyDefaultFee, onClose, onSaved, seed }: {
                   <label className="mb-1 block font-mono text-[9px] uppercase tracking-[0.15em] text-white/30">Quantity</label>
                   <input
                     type="number"
-                    value={item.qty}
+                    value={item.qty === 1 ? "" : item.qty}
                     onChange={(e) => updateLineItem(idx, { qty: parseFloat(e.target.value) || 1 })}
                     placeholder="1"
                     className={inputCls}
@@ -306,7 +320,7 @@ function QuotationBuilder({ companyDefaultFee, onClose, onSaved, seed }: {
                 <div>
                   <label className="mb-1 block font-mono text-[9px] uppercase tracking-[0.15em] text-white/30">Line Total</label>
                   <div className="flex items-center justify-end rounded-xl border border-white/10 bg-[#0d1117] px-3 py-2 text-sm font-semibold text-[#f97316]">
-                    ${item.total.toFixed(2)}
+                    {formatMoney(convertFromUsd(item.total, currency, zigRate), currency)}
                   </div>
                 </div>
               </div>
@@ -322,6 +336,46 @@ function QuotationBuilder({ companyDefaultFee, onClose, onSaved, seed }: {
         </button>
       </div>
 
+      {/* Currency */}
+      <div className="mb-6 rounded-2xl border border-white/10 bg-[#161b22] p-5">
+        <h3 className="mb-3 font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">Currency</h3>
+        <div className="flex gap-2">
+          {(["USD", "ZIG"] as Currency[]).map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => setCurrency(c)}
+              className={`flex-1 rounded-xl border py-2 text-sm font-semibold transition ${
+                currency === c
+                  ? "border-[#f97316] bg-[#f97316]/10 text-[#f97316]"
+                  : "border-white/10 text-white/50 hover:text-white"
+              }`}
+            >
+              {c === "USD" ? "USD ($)" : "ZiG"}
+            </button>
+          ))}
+        </div>
+        {currency === "ZIG" && (
+          <div className="mt-3">
+            <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">
+              Exchange Rate (1 USD = ? ZiG)
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={zigRate === 0 ? "" : zigRate}
+              onChange={(e) => setZigRate(parseFloat(e.target.value) || 0)}
+              placeholder="e.g. 26"
+              className={inputCls}
+            />
+            <p className="mt-1.5 text-xs text-white/40">
+              Prices above are entered in USD and converted to ZiG at this rate. Rates move often — check today's before sending.
+            </p>
+          </div>
+        )}
+      </div>
+
       {/* Call-out fee toggle + totals */}
       <div className="mb-6 rounded-2xl border border-white/10 bg-[#161b22] p-5">
         <div className="flex items-center justify-between">
@@ -332,20 +386,20 @@ function QuotationBuilder({ companyDefaultFee, onClose, onSaved, seed }: {
               onChange={(e) => setCalloutEnabled(e.target.checked)}
               className="h-4 w-4 rounded accent-[#f97316]"
             />
-            Include ${companyDefaultFee.toFixed(2)} call-out fee
+            Include {formatMoney(calloutFeeDisplay, currency)} call-out fee
           </label>
         </div>
         <div className="mt-4 space-y-1.5 border-t border-white/10 pt-4 text-sm">
           <div className="flex justify-between text-white/60">
-            <span>Subtotal</span><span>${subtotal.toFixed(2)}</span>
+            <span>Subtotal</span><span>{formatMoney(subtotal, currency)}</span>
           </div>
           {calloutEnabled && (
             <div className="flex justify-between font-semibold text-[#f97316]">
-              <span>Call-Out Fee</span><span>${companyDefaultFee.toFixed(2)}</span>
+              <span>Call-Out Fee</span><span>{formatMoney(calloutFeeDisplay, currency)}</span>
             </div>
           )}
           <div className="flex justify-between border-t border-white/10 pt-2 font-display text-lg font-bold text-white">
-            <span>Total</span><span>${total.toFixed(2)}</span>
+            <span>Total</span><span>{formatMoney(total, currency)}</span>
           </div>
         </div>
       </div>
@@ -426,6 +480,8 @@ function QuotationCard({ q, contact, defaultCalloutFee, onDuplicate, onConvertTo
       clientTin: q.customer_snapshot.tin ?? "",
       items: q.line_items.map((it) => ({ ...it })),
       calloutEnabled: q.callout_fee_enabled,
+      currency: q.currency ?? "USD",
+      zigRate: q.exchange_rate ?? undefined,
       issuedBy: q.issued_by,
       remark: q.remark ?? "",
     });
@@ -446,6 +502,8 @@ function QuotationCard({ q, contact, defaultCalloutFee, onDuplicate, onConvertTo
       })),
       calloutEnabled: q.callout_fee_enabled,
       calloutAmount: q.callout_fee_amount ?? defaultCalloutFee,
+      currency: q.currency ?? "USD",
+      zigRate: q.exchange_rate ?? undefined,
       issuedBy: q.issued_by,
       remark: q.remark ?? undefined,
     });
@@ -472,7 +530,7 @@ function QuotationCard({ q, contact, defaultCalloutFee, onDuplicate, onConvertTo
         <span className="font-mono text-[10px] uppercase tracking-wider text-white/40">
           {q.line_items.length} item{q.line_items.length === 1 ? "" : "s"}
         </span>
-        <span className="font-display text-lg font-bold text-white">${q.total.toFixed(2)}</span>
+        <span className="font-display text-lg font-bold text-white">{formatMoney(q.total, q.currency ?? "USD")}</span>
       </div>
 
       <div className="mt-1.5 font-mono text-[10px] uppercase tracking-wider text-white/30">
@@ -588,6 +646,7 @@ export function QuotationsAdmin({
     return (
       <QuotationBuilder
         companyDefaultFee={defaultCalloutFee}
+        defaultZigRate={contact.usdToZigRate ?? 1}
         onClose={closeBuilder}
         onSaved={closeBuilder}
         seed={builderSeed}

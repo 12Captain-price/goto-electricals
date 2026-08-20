@@ -177,6 +177,8 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                       lineItems: pendingInvoiceSeed.lineItems,
                       callout_fee_enabled: pendingInvoiceSeed.calloutEnabled,
                       callout_fee_amount: pendingInvoiceSeed.calloutAmount,
+                      currency: pendingInvoiceSeed.currency ?? "USD",
+                      exchange_rate: pendingInvoiceSeed.zigRate ?? null,
                       issued_by: pendingInvoiceSeed.issuedBy,
                       remark: pendingInvoiceSeed.remark,
                       quotation_id: pendingInvoiceSeed.quotationId,
@@ -1082,6 +1084,18 @@ function ContactAdmin({ data, update, showToast }: { data: ReturnType<typeof use
             className={inputCls}
           />
           <p className="mt-1.5 text-xs text-white/40">Changes here update the public site, quotations, and invoices everywhere the call-out fee appears.</p>
+        </div>
+        <div>
+          <label className="mb-2 block font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">USD → ZiG Exchange Rate</label>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={form.usdToZigRate}
+            onChange={(e) => setForm({ ...form, usdToZigRate: parseFloat(e.target.value) || 0 })}
+            className={inputCls}
+          />
+          <p className="mt-1.5 text-xs text-white/40">Default rate (1 USD = this many ZiG) suggested when creating a ZiG quotation or invoice. Editable per-document since rates move often.</p>
         </div>
         <button onClick={save} className="flex items-center gap-2 rounded-full bg-[#f97316] px-5 py-2 text-sm font-semibold text-black hover:bg-orange-400"><Save className="h-4 w-4" /> Save</button>
       </div>

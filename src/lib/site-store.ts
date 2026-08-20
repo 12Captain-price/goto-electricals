@@ -40,6 +40,7 @@ export type ContactInfo = {
   vat: string;
   tin: string;
   calloutFee: number;
+  usdToZigRate: number;
 };
 
 export type Stats = {
@@ -105,6 +106,7 @@ export const DEFAULT_DATA: SiteData = {
     vat: "",
     tin: "",
     calloutFee: 15,
+    usdToZigRate: 26,
   },
   stats: { years: "6", projects: "150", clients: "120" },
   heroSlides: [],

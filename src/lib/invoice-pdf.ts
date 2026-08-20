@@ -1,7 +1,7 @@
 // invoice-pdf.ts — jsPDF with proper multi-page support for long line item lists
 
 import type { Invoice, InvoicePayment, PaymentMethod } from "@/lib/quotes-store";
-import { PAYMENT_METHOD_LABELS, computeInvoicePaymentSummary } from "@/lib/quotes-store";
+import { PAYMENT_METHOD_LABELS, computeInvoicePaymentSummary, CURRENCY_SYMBOLS } from "@/lib/quotes-store";
 import type { ContactInfo } from "@/lib/site-store";
 
 async function imageUrlToDataUrl(url: string): Promise<string> {
@@ -17,8 +17,6 @@ async function imageUrlToDataUrl(url: string): Promise<string> {
   } catch { return ""; }
 }
 
-function fmt(n: number) { return `$${n.toFixed(2)}`; }
-
 export async function downloadInvoicePdf(
   invoice: Invoice,
   contact: ContactInfo,
@@ -26,6 +24,9 @@ export async function downloadInvoicePdf(
 ) {
   const { jsPDF } = await import("jspdf");
   const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+
+  const symbol = CURRENCY_SYMBOLS[invoice.currency ?? "USD"] ?? "$";
+  const fmt = (n: number) => `${symbol}${n.toFixed(2)}`;
 
   const pageW = 210;
   const pageH = 297;
@@ -94,9 +95,15 @@ export async function downloadInvoicePdf(
   pdf.setTextColor(...dark);
   pdf.text(`Invoice No: ${invoice.invoice_number}`, rightX, 51, { align: "right" });
   pdf.text(`Date: ${new Date(invoice.created_at).toLocaleDateString()}`, rightX, 57, { align: "right" });
-  if (invoice.due_date) { pdf.text(`Due: ${new Date(invoice.due_date).toLocaleDateString("en-GB")}`, rightX, 63, { align: "right" }); }
+  let metaY = 57;
+  if (invoice.due_date) { metaY = 63; pdf.text(`Due: ${new Date(invoice.due_date).toLocaleDateString("en-GB")}`, rightX, metaY, { align: "right" }); }
+  if (invoice.currency === "ZIG" && invoice.exchange_rate) {
+    metaY += 6;
+    pdf.setTextColor(...muted);
+    pdf.text(`Rate: 1 USD = ${invoice.exchange_rate} ZiG`, rightX, metaY, { align: "right" });
+  }
 
-  y = Math.max(y, invoice.due_date ? 68 : 62);
+  y = Math.max(y, metaY + 5);
 
   // ── Divider ──
   pdf.setDrawColor(...orange);
@@ -155,6 +162,9 @@ export async function downloadInvoicePdf(
   pdf.setFont("helvetica", "normal");
   pdf.setFontSize(9);
 
+  const invRate = invoice.exchange_rate ?? 1;
+  const convInv = (n: number) => (invoice.currency === "ZIG" ? n * invRate : n);
+
   invoice.line_items.forEach((item, idx) => {
     if (y + rowH > pageH - bottomMargin) {
       pdf.addPage();
@@ -179,10 +189,10 @@ export async function downloadInvoicePdf(
     while (desc.length > 3 && pdf.getTextWidth(desc) > maxW) desc = desc.slice(0, -1);
     if (desc !== (item.description || "—")) desc += "…";
     pdf.text(desc, colDesc, y + 5.5);
-    pdf.text(fmt(item.unit_price), colPrice, y + 5.5);
+    pdf.text(fmt(convInv(item.unit_price)), colPrice, y + 5.5);
     pdf.text(String(item.qty), colQty, y + 5.5);
     pdf.setFont("helvetica", "bold");
-    pdf.text(fmt(item.total), colTotal, y + 5.5, { align: "right" });
+    pdf.text(fmt(convInv(item.total)), colTotal, y + 5.5, { align: "right" });
     pdf.setFont("helvetica", "normal");
     y += rowH;
   });
@@ -330,8 +340,16 @@ export async function downloadInvoicePdf(
   pdf.setDrawColor(...dark);
   pdf.line(rightX - 60, y + 2, rightX, y + 2);
 
-  // ── Document footer ──
+  // ── Thank you note ──
   y += 14;
+  checkPage(14);
+  pdf.setFont("helvetica", "italic");
+  pdf.setFontSize(10);
+  pdf.setTextColor(...orange);
+  pdf.text("Thank you for your business!", pageW / 2, y, { align: "center" });
+
+  // ── Document footer ──
+  y += 10;
   checkPage(10);
   pdf.setDrawColor(...border);
   pdf.line(margin, y, rightX, y);

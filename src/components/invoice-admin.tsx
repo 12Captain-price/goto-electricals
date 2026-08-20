@@ -7,8 +7,8 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import {
   useInvoices, useCustomers,
-  computeInvoicePaymentSummary, PAYMENT_METHOD_LABELS,
-  type Invoice, type InvoicePayment, type Customer, type QuotationLineItem, type PaymentMethod,
+  computeInvoicePaymentSummary, PAYMENT_METHOD_LABELS, formatMoney, convertFromUsd,
+  type Invoice, type InvoicePayment, type Customer, type QuotationLineItem, type PaymentMethod, type Currency,
 } from "../lib/quotes-store";
 import { downloadInvoicePdf } from "../lib/invoice-pdf";
 
@@ -32,7 +32,7 @@ const STATUS_CONFIG = {
   },
 };
 
-function fmt(n: number) { return `$${n.toFixed(2)}`; }
+function fmt(n: number, currency: Currency = "USD") { return formatMoney(n, currency); }
 
 type LineItem = { description: string; quantity: number; unit_price: number };
 function emptyItem(): LineItem { return { description: "", quantity: 1, unit_price: 0 }; }
@@ -48,12 +48,12 @@ function toQuotationLineItems(items: LineItem[]): QuotationLineItem[] {
 
 // ── Payment Row ──
 
-function PaymentRow({ payment, onDelete }: { payment: InvoicePayment; onDelete: () => void }) {
+function PaymentRow({ payment, currency, onDelete }: { payment: InvoicePayment; currency: Currency; onDelete: () => void }) {
   return (
     <div className="flex items-start justify-between py-3 border-b border-white/10 last:border-0">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-semibold text-white">{fmt(payment.amount)}</span>
+          <span className="font-semibold text-white">{fmt(payment.amount, currency)}</span>
           <span className="text-xs bg-white/10 text-white/60 px-2 py-0.5 rounded-full">
             {PAYMENT_METHOD_LABELS[payment.method]}
           </span>
@@ -181,16 +181,16 @@ function InvoicePaymentPanel({
           <div className="rounded-xl border border-white/10 bg-[#0d1117] p-4 space-y-2">
             <div className="flex items-center justify-between text-sm">
               <span className="text-white/50">Invoice Total</span>
-              <span className="font-bold text-white">{fmt(invoice.total)}</span>
+              <span className="font-bold text-white">{fmt(invoice.total, invoice.currency ?? "USD")}</span>
             </div>
             <div className="flex items-center justify-between text-sm">
               <span className="text-white/50">Amount Paid</span>
-              <span className="font-semibold text-[#22c55e]">{fmt(summary.amountPaid)}</span>
+              <span className="font-semibold text-[#22c55e]">{fmt(summary.amountPaid, invoice.currency ?? "USD")}</span>
             </div>
             {summary.balance > 0 && (
               <div className="flex items-center justify-between border-t border-white/10 pt-2 text-sm">
                 <span className="text-white/50">Balance Remaining</span>
-                <span className="font-bold text-[#ef4444]">{fmt(summary.balance)}</span>
+                <span className="font-bold text-[#ef4444]">{fmt(summary.balance, invoice.currency ?? "USD")}</span>
               </div>
             )}
             <div className="flex items-center justify-between pt-1">
@@ -225,7 +225,7 @@ function InvoicePaymentPanel({
             ) : (
               <div className="rounded-xl border border-white/10 bg-[#0d1117] px-3">
                 {payments.map((p) => (
-                  <PaymentRow key={p.id} payment={p} onDelete={() => handleDelete(p.id)} />
+                  <PaymentRow key={p.id} payment={p} currency={invoice.currency ?? "USD"} onDelete={() => handleDelete(p.id)} />
                 ))}
               </div>
             )}
@@ -297,15 +297,15 @@ function InvoiceCard({ invoice, onClick, onDelete }: {
       <div className="mt-4 grid grid-cols-3 gap-2 border-t border-white/10 pt-3 text-center">
         <div>
           <p className="font-mono text-[9px] uppercase tracking-wider text-white/30">Total</p>
-          <p className="text-sm font-bold text-white">{fmt(invoice.total)}</p>
+          <p className="text-sm font-bold text-white">{fmt(invoice.total, invoice.currency ?? "USD")}</p>
         </div>
         <div>
           <p className="font-mono text-[9px] uppercase tracking-wider text-white/30">Paid</p>
-          <p className="text-sm font-bold text-[#22c55e]">{fmt(summary.amountPaid)}</p>
+          <p className="text-sm font-bold text-[#22c55e]">{fmt(summary.amountPaid, invoice.currency ?? "USD")}</p>
         </div>
         <div>
           <p className="font-mono text-[9px] uppercase tracking-wider text-white/30">Balance</p>
-          <p className={`text-sm font-bold ${summary.balance > 0 ? "text-[#ef4444]" : "text-white/30"}`}>{fmt(summary.balance)}</p>
+          <p className={`text-sm font-bold ${summary.balance > 0 ? "text-[#ef4444]" : "text-white/30"}`}>{fmt(summary.balance, invoice.currency ?? "USD")}</p>
         </div>
       </div>
     </motion.div>
@@ -318,7 +318,7 @@ function InvoiceBuilder({ seed, onSave, onCancel, settings }: {
   seed?: Partial<Invoice> & { lineItems?: LineItem[] };
   onSave: (data: Omit<Invoice, "id" | "invoice_number" | "created_at" | "payment_status" | "payments">) => Promise<void>;
   onCancel: () => void;
-  settings?: { calloutFee?: number };
+  settings?: { calloutFee?: number; usdToZigRate?: number };
 }) {
   const { customers } = useCustomers();
   const [customerName, setCustomerName] = useState(seed?.customer_snapshot?.name || "");
@@ -332,6 +332,8 @@ function InvoiceBuilder({ seed, onSave, onCancel, settings }: {
   const [dueDate, setDueDate] = useState(seed?.due_date || "");
   const [calloutEnabled, setCalloutEnabled] = useState(seed?.callout_fee_enabled ?? true);
   const [calloutAmount, setCalloutAmount] = useState(seed?.callout_fee_amount ?? settings?.calloutFee ?? 15);
+  const [currency, setCurrency] = useState<Currency>((seed as any)?.currency ?? "USD");
+  const [zigRate, setZigRate] = useState<number>((seed as any)?.exchange_rate ?? settings?.usdToZigRate ?? 26);
   const [lineItems, setLineItems] = useState<LineItem[]>(() => {
     if (seed?.lineItems && seed.lineItems.length > 0) return seed.lineItems;
     if (seed?.line_items && seed.line_items.length > 0)
@@ -343,8 +345,18 @@ function InvoiceBuilder({ seed, onSave, onCancel, settings }: {
   const [customerSearch, setCustomerSearch] = useState("");
   const [showCustomerSearch, setShowCustomerSearch] = useState(false);
 
-  const subtotal = lineItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);
+  // Line item prices are always entered in USD; call-out fee is tracked directly
+  // in whichever currency is selected, and rescaled when the currency is switched.
+  const subtotalUsd = lineItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);
+  const subtotal = convertFromUsd(subtotalUsd, currency, zigRate);
   const total = subtotal + (calloutEnabled ? calloutAmount : 0);
+
+  function handleCurrencyChange(next: Currency) {
+    if (next === currency) return;
+    if (next === "ZIG") setCalloutAmount((prev) => Math.round(prev * (zigRate || 1) * 100) / 100);
+    else setCalloutAmount((prev) => Math.round((prev / (zigRate || 1)) * 100) / 100);
+    setCurrency(next);
+  }
 
   function updateItem(idx: number, field: keyof LineItem, value: string | number) {
     setLineItems((prev) => { const next = [...prev]; next[idx] = { ...next[idx], [field]: value }; return next; });
@@ -378,6 +390,8 @@ function InvoiceBuilder({ seed, onSave, onCancel, settings }: {
         callout_fee_enabled: calloutEnabled,
         callout_fee_amount: calloutAmount,
         subtotal, total,
+        currency,
+        exchange_rate: currency === "ZIG" ? zigRate : null,
         issued_by: issuedBy.trim(),
         remark: remark.trim() || null,
         due_date: dueDate || null,
@@ -495,17 +509,17 @@ function InvoiceBuilder({ seed, onSave, onCancel, settings }: {
                   <input type="text" value={item.description} onChange={(e) => updateItem(idx, "description", e.target.value)} placeholder="e.g. DB Board Upgrade" className={inputCls} />
                 </div>
                 <div>
-                  <label className="mb-1 block font-mono text-[9px] uppercase tracking-[0.15em] text-white/30">Unit Price ($)</label>
-                  <input type="number" min="0" step="0.01" value={item.unit_price} onChange={(e) => updateItem(idx, "unit_price", parseFloat(e.target.value) || 0)} className={inputCls} />
+                  <label className="mb-1 block font-mono text-[9px] uppercase tracking-[0.15em] text-white/30">Unit Price (USD)</label>
+                  <input type="number" min="0" step="0.01" value={item.unit_price === 0 ? "" : item.unit_price} placeholder="0.00" onChange={(e) => updateItem(idx, "unit_price", parseFloat(e.target.value) || 0)} className={inputCls} />
                 </div>
                 <div>
                   <label className="mb-1 block font-mono text-[9px] uppercase tracking-[0.15em] text-white/30">Qty</label>
-                  <input type="number" min="1" value={item.quantity} onChange={(e) => updateItem(idx, "quantity", parseInt(e.target.value) || 1)} className={inputCls} />
+                  <input type="number" min="1" value={item.quantity === 1 ? "" : item.quantity} placeholder="1" onChange={(e) => updateItem(idx, "quantity", parseInt(e.target.value) || 1)} className={inputCls} />
                 </div>
                 <div>
                   <label className="mb-1 block font-mono text-[9px] uppercase tracking-[0.15em] text-white/30">Line Total</label>
                   <div className="flex items-center justify-end rounded-xl border border-white/10 bg-[#0d1117] px-3 py-2 text-sm font-semibold text-[#f97316]">
-                    {fmt(item.quantity * item.unit_price)}
+                    {fmt(convertFromUsd(item.quantity * item.unit_price, currency, zigRate), currency)}
                   </div>
                 </div>
               </div>
@@ -518,6 +532,46 @@ function InvoiceBuilder({ seed, onSave, onCancel, settings }: {
         </button>
       </div>
 
+      {/* Currency */}
+      <div className="rounded-2xl border border-white/10 bg-[#161b22] p-5">
+        <h3 className="mb-3 font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">Currency</h3>
+        <div className="flex gap-2">
+          {(["USD", "ZIG"] as Currency[]).map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => handleCurrencyChange(c)}
+              className={`flex-1 rounded-xl border py-2 text-sm font-semibold transition ${
+                currency === c
+                  ? "border-[#f97316] bg-[#f97316]/10 text-[#f97316]"
+                  : "border-white/10 text-white/50 hover:text-white"
+              }`}
+            >
+              {c === "USD" ? "USD ($)" : "ZiG"}
+            </button>
+          ))}
+        </div>
+        {currency === "ZIG" && (
+          <div className="mt-3">
+            <label className="mb-1.5 block font-mono text-[9px] uppercase tracking-[0.15em] text-white/30">
+              Exchange Rate (1 USD = ? ZiG)
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={zigRate === 0 ? "" : zigRate}
+              onChange={(e) => setZigRate(parseFloat(e.target.value) || 0)}
+              placeholder="e.g. 26"
+              className={inputCls}
+            />
+            <p className="mt-1.5 text-xs text-white/40">
+              Line item prices are entered in USD and converted to ZiG at this rate. Rates move often — check today's before sending.
+            </p>
+          </div>
+        )}
+      </div>
+
       {/* Call-out fee + totals */}
       <div className="rounded-2xl border border-white/10 bg-[#161b22] p-5">
         <div className="flex items-center justify-between">
@@ -527,19 +581,19 @@ function InvoiceBuilder({ seed, onSave, onCancel, settings }: {
           </label>
           {calloutEnabled && (
             <div className="flex items-center gap-2">
-              <span className="text-sm text-white/40">$</span>
+              <span className="text-sm text-white/40">{currency === "ZIG" ? "ZiG" : "$"}</span>
               <input type="number" min="0" step="0.01" value={calloutAmount} onChange={(e) => setCalloutAmount(parseFloat(e.target.value) || 0)}
                 className="w-24 rounded-xl border border-white/10 bg-[#0d1117] px-3 py-1.5 text-sm text-white focus:border-[#f97316] focus:outline-none" />
             </div>
           )}
         </div>
         <div className="mt-4 space-y-1.5 border-t border-white/10 pt-4 text-sm">
-          <div className="flex justify-between text-white/60"><span>Subtotal</span><span>{fmt(subtotal)}</span></div>
+          <div className="flex justify-between text-white/60"><span>Subtotal</span><span>{fmt(subtotal, currency)}</span></div>
           {calloutEnabled && (
-            <div className="flex justify-between font-semibold text-[#f97316]"><span>Call-Out Fee</span><span>{fmt(calloutAmount)}</span></div>
+            <div className="flex justify-between font-semibold text-[#f97316]"><span>Call-Out Fee</span><span>{fmt(calloutAmount, currency)}</span></div>
           )}
           <div className="flex justify-between border-t border-white/10 pt-2 font-display text-lg font-bold text-white">
-            <span>Total</span><span>{fmt(total)}</span>
+            <span>Total</span><span>{fmt(total, currency)}</span>
           </div>
         </div>
       </div>

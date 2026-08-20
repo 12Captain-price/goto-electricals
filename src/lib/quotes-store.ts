@@ -36,6 +36,32 @@ export type QuotationLineItem = {
   total: number;
 };
 
+// ── Currency ──
+
+export type Currency = "USD" | "ZIG";
+
+export const CURRENCY_LABELS: Record<Currency, string> = {
+  USD: "USD ($)",
+  ZIG: "ZiG",
+};
+
+export const CURRENCY_SYMBOLS: Record<Currency, string> = {
+  USD: "$",
+  ZIG: "ZiG ",
+};
+
+export function formatMoney(amount: number, currency: Currency = "USD") {
+  const symbol = CURRENCY_SYMBOLS[currency] ?? "$";
+  return `${symbol}${amount.toFixed(2)}`;
+}
+
+// Converts a USD amount into the target currency using the given rate
+// (1 USD = `rate` ZiG). Amounts are always entered/priced in USD internally;
+// the rate is only applied for ZiG-currency documents.
+export function convertFromUsd(usdAmount: number, currency: Currency, rate: number) {
+  return currency === "ZIG" ? usdAmount * (rate || 1) : usdAmount;
+}
+
 export type CustomerSnapshot = {
   name: string;
   phone: string;
@@ -55,6 +81,8 @@ export type Quotation = {
   callout_fee_amount: number;
   subtotal: number;
   total: number;
+  currency: Currency;
+  exchange_rate: number | null;
   issued_by: string;
   remark: string | null;
   created_at: string;
@@ -88,6 +116,8 @@ export type Invoice = {
   callout_fee_amount: number;
   subtotal: number;
   total: number;
+  currency: Currency;
+  exchange_rate: number | null;
   issued_by: string;
   remark: string | null;
   due_date: string | null;

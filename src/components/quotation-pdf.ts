@@ -2,6 +2,7 @@
 // break cleanly across pages with the table header repeated on each new page.
 
 import type { Quotation } from "@/lib/quotes-store";
+import { CURRENCY_SYMBOLS } from "@/lib/quotes-store";
 import type { ContactInfo } from "@/lib/site-store";
 
 async function imageUrlToDataUrl(url: string): Promise<string> {
@@ -19,8 +20,6 @@ async function imageUrlToDataUrl(url: string): Promise<string> {
   }
 }
 
-function fmt(n: number) { return `$${n.toFixed(2)}`; }
-
 function dateStr(d: string) {
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
@@ -28,6 +27,9 @@ function dateStr(d: string) {
 export async function downloadQuotationPdf(q: Quotation, contact: ContactInfo): Promise<void> {
   const { jsPDF } = await import("jspdf");
   const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+
+  const symbol = CURRENCY_SYMBOLS[q.currency ?? "USD"] ?? "$";
+  const fmt = (n: number) => `${symbol}${n.toFixed(2)}`;
 
   const pageW = 210;
   const margin = 16;
@@ -96,8 +98,12 @@ export async function downloadQuotationPdf(q: Quotation, contact: ContactInfo): 
   pdf.setTextColor(...dark);
   pdf.text(`Quote No: ${q.quote_number}`, rightX, 51, { align: "right" });
   pdf.text(`Date: ${dateStr(q.created_at)}`, rightX, 57, { align: "right" });
+  if (q.currency === "ZIG" && q.exchange_rate) {
+    pdf.setTextColor(...muted);
+    pdf.text(`Rate: 1 USD = ${q.exchange_rate} ZiG`, rightX, 63, { align: "right" });
+  }
 
-  y = Math.max(y, 62);
+  y = Math.max(y, q.currency === "ZIG" && q.exchange_rate ? 68 : 62);
 
   // ── Divider ──
   pdf.setDrawColor(...orange);
@@ -161,6 +167,9 @@ export async function downloadQuotationPdf(q: Quotation, contact: ContactInfo): 
   pdf.setFont("helvetica", "normal");
   pdf.setFontSize(9);
 
+  const rate = q.exchange_rate ?? 1;
+  const conv = (n: number) => (q.currency === "ZIG" ? n * rate : n);
+
   q.line_items.forEach((item, idx) => {
     // Check if we need a new page before drawing this row
     if (y + rowH > pageH - bottomMargin) {
@@ -190,11 +199,11 @@ export async function downloadQuotationPdf(q: Quotation, contact: ContactInfo): 
     }
     if (desc !== (item.description || "—")) desc += "…";
     pdf.text(desc, col.desc, y + 5.5);
-    pdf.text(fmt(item.unit_price), col.price, y + 5.5);
+    pdf.text(fmt(conv(item.unit_price)), col.price, y + 5.5);
     pdf.text(String(item.qty),     col.qty,   y + 5.5);
 
     pdf.setFont("helvetica", "bold");
-    pdf.text(fmt(item.total), col.total, y + 5.5, { align: "right" });
+    pdf.text(fmt(conv(item.total)), col.total, y + 5.5, { align: "right" });
     pdf.setFont("helvetica", "normal");
 
     y += rowH;
@@ -281,8 +290,16 @@ export async function downloadQuotationPdf(q: Quotation, contact: ContactInfo): 
   pdf.setDrawColor(...dark);
   pdf.line(rightX - 60, y + 2, rightX, y + 2);
 
-  // ── Document footer ──
+  // ── Thank you note ──
   y += 14;
+  checkPage(14);
+  pdf.setFont("helvetica", "italic");
+  pdf.setFontSize(10);
+  pdf.setTextColor(...orange);
+  pdf.text("Thank you for the opportunity to quote for your project!", pageW / 2, y, { align: "center" });
+
+  // ── Document footer ──
+  y += 10;
   checkPage(10);
   pdf.setDrawColor(...border);
   pdf.line(margin, y, rightX, y);
